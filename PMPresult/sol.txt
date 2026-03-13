@@ -1,0 +1,12 @@
+		PMPsoln	baseData
+hh_1	dwheat_imp	8,90E-01	0,87
+hh_1	oat_imp	1,059097996	1,06
+hh_1	fababean_loc	0,98	0,98
+hh_1	barley_loc	1,230821226	1,25
+hh_1	chickpea_loc	2,22E-16	
+hh_2	dwheat_imp	3,36E+01	32,69
+hh_2	oat_imp	12,88720345	12,98
+hh_2	fababean_loc	9,979999984	9,98
+hh_2	barley_loc	8,261243003	6,61
+hh_2	fenugreek_loc	6,65E+00	9,11
+hh_2	chickpea_loc	13,72999999	13,73
