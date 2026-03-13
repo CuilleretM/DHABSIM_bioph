@@ -1,0 +1,14 @@
+$setglobal REGION tizi
+$setglobal BIOPH on
+$setglobal CONS off
+$setglobal DATABASE on
+$setglobal ORCHARD on
+$setglobal LIVESTOCK_simplified on
+$setglobal CROP on
+$setglobal PMPCalib on
+$setglobal BiophCalib on
+$setglobal VALUECHAIN off
+$setglobal DIONYSUS off
+$setglobal ENERGY off
+$setglobal FIXEDIRRIGATION on
+$setglobal LINUX on
