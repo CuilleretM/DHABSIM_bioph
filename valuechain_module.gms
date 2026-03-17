@@ -146,7 +146,8 @@ E_labor_buyer(y)..
 
 
 E_GHG(hhold,y)..
-    v_GHG(hhold,y)=E=0 
+    v_GHG(hhold,y)=E=0
+    
 $ifi %LIVESTOCK_simplified%==on     +v_GHG_livestock(hhold,y)
 $ifi %CROP%==on    +v_GHG_C(hhold,y)
 $ifi %ORCHARD%==on    +v_GHG_AF(hhold,y)
@@ -161,9 +162,15 @@ E_input_capacity_nitr_C(inout,seller_C,y)..
     sum(hhold, v_inputSeller_C(hhold,"nitr",seller_C,y)) =L= 
     p_capacity_seller_C("nitr",seller_C);
 E_input_seller_C(hhold,inout,y)..
-    V_Nfert_C(hhold,y) 
+    (sum(crop_activity_endo, V_Use_Input_C(hhold,crop_activity_endo,'nitr',y))
+$ifi %BIOPH%==ON $ifi %LIVESTOCK_simplified%==ON    -p_Norg(hhold)
+$ifi %BIOPH%==ON -p_Ncomp(hhold)
+)
     =E= 
     sum(seller_C, v_inputSeller_C(hhold,"nitr",seller_C,y));
+
+
+
 
 *-- Phytosanitary Input Equations ----------------------------------------
 E_input_capacity_phyto_C(inout,seller_C,y)..
@@ -220,7 +227,7 @@ E_TransportCost_C(hhold,y)..
         p_distance_seeder(hhold,seeder)*p_distanceprice(hhold));
 
 E_GHG_C(hhold,y)..
-    v_GHG_C(hhold,y)=E=
+    v_GHG_C(hhold,y)=E= sum((crop_activity_endo,field,inten),v_Prd_C(hhold,crop_activity_endo,field,inten,y))/(
  sum((inpv,seller_C), v_inputSeller_C(hhold,inpv,seller_C,y)*
         (p_distance_seller_C(hhold,seller_C)*P_GHG(hhold,"ghg_km")+P_GHG(hhold,inpv)))
         
@@ -231,7 +238,7 @@ E_GHG_C(hhold,y)..
         (p_distance_buyer(hhold,buyer)*P_GHG(hhold,"ghg_km")+P_GHG(hhold,c_product_endo)))
         
     + sum((crop_activity_endo,seeder),v_seedSeeder(hhold,crop_activity_endo,seeder,y) * 
-        (p_distance_seeder(hhold,seeder)*P_GHG(hhold,"ghg_km")+P_GHG(hhold,crop_activity_endo)));
+        (p_distance_seeder(hhold,seeder)*P_GHG(hhold,"ghg_km")+P_GHG(hhold,crop_activity_endo)))+0.00001);
 ;        
 
 $endIf
@@ -285,7 +292,7 @@ $ifi %ORCHARD%==on + sum(seller_AF,v_inputSeller_AF(hhold,"plants_nb",seller_AF,
 $ifi %ORCHARD%==on + sum((c_treej,buyer),v_outputBuyer(hhold,c_treej,buyer,y)*p_distance_buyer(hhold,buyer)*p_distanceprice(hhold));
 
 E_GHG_AF(hhold,y)..
-    v_GHG_AF(hhold,y) =E=
+    v_GHG_AF(hhold,y) =E=sum(c_treej,v_prodQuant(hhold,c_treej,y))/(
     sum(seller_AF, 
         v_inputSeller_AF(hhold,"other",seller_AF,y) *
         (p_distance_seller_AF(hhold,seller_AF) * P_GHG(hhold,"ghg_km") + P_GHG(hhold,"other"))
@@ -305,7 +312,7 @@ E_GHG_AF(hhold,y)..
     + sum((c_treej,buyer), 
         v_outputBuyer(hhold,c_treej,buyer,y) *
         (p_distance_buyer(hhold,buyer) * P_GHG(hhold,"ghg_km") + P_GHG(hhold,c_treej))
-    );
+    )+0.00001);
 
 E_labor_seller_AF(y)..
     v_laborSeller_AF(y) =E= 
@@ -402,8 +409,8 @@ E_transportCost_livestock(hhold,y)..
     + v_transportCost_Feed_seller(hhold,y);
     
 E_GHG_livestock(hhold,y)..
-   v_GHG_livestock(hhold,y) =E=
-    sum((seller_A), v_inputSeller_A(hhold,"AdditionalCostLivestock",seller_A,y)*
+   v_GHG_livestock(hhold,y) =E= sum(ak,v_prodQuant(hhold,ak,y))/
+    (sum((seller_A), v_inputSeller_A(hhold,"AdditionalCostLivestock",seller_A,y)*
     (p_distance_seller_A(hhold,seller_A)*p_GHG(hhold,"ghg_km")+p_GHG(hhold,"AdditionalCostLivestock")))
    
     + sum((ak,buyer),v_outputBuyer(hhold,ak,buyer,y)*
@@ -418,7 +425,7 @@ E_GHG_livestock(hhold,y)..
         v_Feed_seller(hhold,feedc,Feed_seller,y)*(P_GHG(hhold,feedc) + 
         p_distance_Feed_seller(hhold,Feed_seller)*p_GHG(hhold,"ghg_km")))
     
-    +sum((type_animal,age),p_GHG(hhold,type_animal)*V_animals(hhold,type_animal,age,y))
+    +sum((type_animal,age),p_GHG(hhold,type_animal)*V_animals(hhold,type_animal,age,y))+0.00001)
     
 ;
 $endIf

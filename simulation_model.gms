@@ -2508,7 +2508,7 @@ E_MCDA..
      V_MCDA
           =E=  
                P_W_GM * (v_npv_tot - repGM_saved_min)/(repGM_saved_max - repGM_saved_min )
-- P_W_Water * (V_Tot_WaterUse- repWaterUse_saved_min)/(repWaterUse_saved_max - repWaterUse_saved_min)
+- P_W_Water * (V_Tot_WaterUse- repWaterUse_saved_min)/(repWaterUse_saved_max - repWaterUse_saved_min+0.0001)
 + P_W_JobCreation * (V_Total_ValueChain_Labor - repLabor_saved_min)/(repLabor_saved_max - repLabor_saved_min )
 - P_W_GHG * (V_GHGtotal - repghg_saved_min)/(repghg_saved_max - repghg_saved_min )
 + P_W_Biodiversity * (v_diversity - repDiversity_saved_min)/(repDiversity_saved_max - repDiversity_saved_min)

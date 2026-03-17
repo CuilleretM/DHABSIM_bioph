@@ -308,7 +308,7 @@ parameter
   V0_Use_Input_C(hhold,crop_activity,inout)             'input use (kg)'
   v0_inputCost(hhold,crop_activity,inout)            'input cost (nc)'
   V0_Use_Seed_C(hhold,crop_activity,seedbal)          'seed use (kg)'
-  
+  v0_Yld_C_stress(hhold,*,*,field,inten)
 ;
 *set previouscrop;
 *~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
@@ -367,7 +367,7 @@ positive variable
   v_Yld_C(hhold,crop_activity,crop_activity,field,inten,year)      'crop activity yield (ha)'
   v_Land_C(hhold,crop_activity,field,year)               'crop area by soil type (ha)'
 ** (SiwaPMP) added this as the variable we calibrate to ***
-*  v_Land_C_Agg(hhold,crop_activity,field,year)               'crop area by soil type (ha) aggregated across soil types'
+  v_Land_C_Agg(hhold,crop_activity,year)               'crop area by soil type (ha) aggregated across soil types'
   v_Use_Land_C(hhold,field,year)                   'cropland used (ha)'
   V_FamLabor_C(hhold,year,m)                     'labor used for cropping activities (person-day)'
   V_HLabor_C(hhold,year,m)                     'labor used for cropping activities (person-day)'
@@ -725,6 +725,7 @@ positive variables
 
 
 Integer Variable
+*positive variables
     V_animals(hhold,type_animal,age,y)   'Animal population (head)'
     v_Slaughter(hhold,type_animal,age,y)    'Animals slaughtered (head)'
     V_NewPurchased(hhold,type_animal,age,y)    'Animals purchased (head)'
@@ -1014,15 +1015,15 @@ $endif
 $iftheni %CROP%==on
 parameter
 ** (SiwaPMP) additional parameters needed for PMP calibration
-  delta1                   small number  /0.0000001/
-  PMPslope(hhold,crop_activity,field)      'PMP cost function slope'
-  PMPint(hhold,crop_activity,field)        'PMP cost function intercept'
-  PMPdualVal(hhold,crop_activity,field)    'shadow value from PMP calibration constraints'
-  PMPSolnCheck(hhold,crop_activity,field,*)    'Comparison of results from PMP calibration with data'
+  delta1                   small number  /0.0001/
+  PMPslope(hhold,crop_activity)      'PMP cost function slope'
+  PMPint(hhold,crop_activity)        'PMP cost function intercept'
+  PMPdualVal(hhold,crop_activity)    'shadow value from PMP calibration constraints'
+  PMPSolnCheck(hhold,crop_activity,*)    'Comparison of results from PMP calibration with data'
   PMPswitch   switch for PMP constrained calibration stage  /1/
 ;
-PMPint(hhold,crop_activity_endo,field) = 0;
-PMPslope(hhold,crop_activity_endo,field) = 0;
+PMPint(hhold,crop_activity_endo) = 0;
+PMPslope(hhold,crop_activity_endo) = 0;
 display delta1;
 $endif
 
@@ -1129,15 +1130,22 @@ Parameters
     p_b_DR_negative_fixed(hhold,crop_activity,field,inten,m,y) 'Fixed binary DR negative indicator'
 ;
 
-
+Parameter
+    TAW(hhold,crop_activity,field,inten)                    'Total Available Water (mm)'
+    RAW(hhold,crop_activity,field,inten,m,y)                    'Readily Available Water (mm)'
+    CR(hhold,crop_activity,field,inten)                     'Capillary Rise, arbitrary put at this level'
+    days_in_month(m)                                    'Nombre de jours par mois'
+    ET0_month(hhold,crop_activity,field,inten,m,y)
+    p_test(hhold,crop_activity,field,inten,m,y)  
+;
 
 *~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
 * #1 Parameters for nitrate
 *~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
 parameter
-calibBioph(hhold,crop_activity,field,inten);
+calibBioph(hhold,crop_activity,*,field,inten);
 
-calibBioph(hhold,crop_activity,field,inten)=eps;
+calibBioph(hhold,crop_activity,crop_preceding,field,inten)=eps;
 
 parameters
 p_cropCoef(hhold,crop_activity,field,inten,*)
@@ -1454,7 +1462,7 @@ p_energy_task_crop(hhold,crop_activity,inten,NamePesticide)=  enerReqtask_crop(h
 p_energy_task_crop(hhold,crop_activity,inten,NameHarvest)  =  enerReqtask_crop(hhold,crop_activity,inten,"harv_MJ_ha") ;
 p_energy_crop(hhold,crop_activity,inten,m) = sum(c_t_m(crop_activity,task,m), p_energy_task_crop(hhold,crop_activity,inten,task) );
 
-
+display enerReqtask_crop;
 *p_energy_AF(hhold,c_tree,inten,m)
 * p_energy_crop(hhold,crop_activity,inten,m) 
 *enerReqtask_AF(hhold,c_tree,inten,"fertilizer")    

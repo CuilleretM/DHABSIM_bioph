@@ -133,6 +133,6 @@ model hholdmod 'Core Household Module' /
     E_maxhiredlabor      
     e_income_off         
     e_income_tot         
-*$ifi %CONS%==on e_cash    
+$ifi %CONS%==on e_cash    
 $ifi %CONS%==on e_hhcon   
 /;

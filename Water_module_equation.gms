@@ -31,8 +31,6 @@ p_rain(y,m) = p_meteo('%FstYear%',m);
 * - p_water_calib(crop_activity_endo,inten)
 *;
 p_kc(crop_activity_endo,field,inten) =agro(crop_activity_endo,inten,"p_kc")
-$ifi %BIOPHcalib%==OFF *p_water_calib(crop_activity_endo,inten)
-* - 
 ;
 
 * Rate of Evapotranspiration simplified as a year mean value mm/day
@@ -41,14 +39,7 @@ $ifi %BIOPHcalib%==OFF *p_water_calib(crop_activity_endo,inten)
 *Maximum amount of irrigation per month mm
 *p_nirr(hhold,crop_activity_endo,field,inten,m) = v0_irrigation(hhold,crop_activity_endo,field,inten,m);
 
-Parameter
-    TAW(hhold,crop_activity,field,inten)                    'Total Available Water (mm)'
-    RAW(hhold,crop_activity,field,inten,m,y)                    'Readily Available Water (mm)'
-    CR(hhold,crop_activity,field,inten)                     'Capillary Rise, arbitrary put at this level'
-    days_in_month(m)                                    'Nombre de jours par mois'
-    ET0_month(hhold,crop_activity,field,inten,m,y)
-    p_test(hhold,crop_activity,field,inten,m,y)  
-;
+
 * Initial Capillary Rise value
 CR(hhold,crop_activity_endo,field,inten) = 0.1;
 * Number of day per month
@@ -85,8 +76,8 @@ $exit
 * ================================================================
 
 $Label first_sim
-scalar BigExcess /5000/;
-scalar BigKs /20/;
+scalar BigExcess /100000/;
+scalar BigKs /50/;
 scalar tinywater /1e-5/;
 binary Variable
     b_KS(hhold,crop_activity,field,inten,m,y)
@@ -154,7 +145,7 @@ E_DR_MONTH_CONTINUITY(hhold,crop_activity_endo,field,inten,m,y)$(ord(m) < card(m
     v_DR_end(hhold,crop_activity_endo,field,inten,m,y);
 * Limits of irrigation water
 E_WATER_LIMIT(hhold,crop_activity_endo,field,inten,m,y)$(ord(m) >= 1)..
-    v_irrigation_opt(hhold,crop_activity_endo,field,inten,m,y) =e= 
+    v_irrigation_opt(hhold,crop_activity_endo,field,inten,m,y) =l= 
     v0_max_irrigation(hhold,crop_activity_endo,field,inten,m,y)  
 ;
 
