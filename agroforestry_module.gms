@@ -98,7 +98,7 @@ E_Labor_AF(hhold,y,m)..
     );
 
 * Planting area constraint (for years after the first)
-E_PLANTING_AF(hhold,field,inten,age_tree,y)$(ord(y) > 1)..
+E_PLANTING_AF(hhold,field,inten,age_tree,y)$(ord(y) > 1 and p_field_AF(hhold,field) > 0)..
     sum(c_tree, V_Area_AF(hhold,field,c_tree,age_tree,inten,y)$(ord(age_tree) = 1)) =l= 
     sum((c_tree),V0_Area_AF(hhold,field,c_tree,age_tree,inten));
     

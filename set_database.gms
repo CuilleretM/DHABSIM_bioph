@@ -432,7 +432,7 @@ set c_tree          'crops'
     ;
 $iftheni %ORCHARD%==on
 
-
+set othcost_tree / other_localCurrency_ha,phyto_localCurrency_ha,area_ha,nitr_kg_ha,plants_nb_ha /;
 
 *set ageclass_tree /young,adult,old/;
 
@@ -447,7 +447,7 @@ Parameter p_taskLabor_cost_LocalCur(*,*) 'task labor'
           V0_Area_AF(hhold,field,c_tree,age_tree,inten)    'land available (ha)'
           p_inputcost(hhold,c_tree,field,inten) 'input cost'
           v0_Age_AF(c_tree,field, age_tree) 'Age of trees'
-          v0_cropCoef_AF(hhold,c_tree,field,inten,othcost_tree<)
+          v0_cropCoef_AF(hhold,c_tree,field,inten,othcost_tree)
           Labor_Task_AF(*,*,*,*)
           p_Labor_Task_AF(*,*,*,*)
           p_laborReq_AF(*,*,*,*)
@@ -456,6 +456,7 @@ Parameter p_taskLabor_cost_LocalCur(*,*) 'task labor'
           v0costOther_AF(hhold,c_tree,field,inten)
           p_taskLabor_cost(c_tree,task_tree)
           p_buyPrice_tree(inputprice_tree,c_tree)
+          p_field_AF(hhold,field)
 ;
 
 * Load agroforestry data
@@ -505,6 +506,10 @@ Labor_Task_AF
 task_tree
 *ageclass_tree
 ;
+
+p_field_AF(hhold,field)=sum((c_tree,inten),v0_cropCoef_AF(hhold,c_tree,field,inten,"area_ha"));
+
+
 *
 *
 Set   NamePlantingAF(task_tree)         ;
@@ -548,8 +553,9 @@ a_c_treej(c_tree,c_treej) $(activity_output(c_tree,c_treej)) = yes ;
 V0_Area_AF(hhold,field,c_tree,age_tree,inten)=v0_Age_AF(c_tree,field, age_tree)*v0_cropCoef_AF(hhold,c_tree,field,inten,"area_ha");
 
 display V0_Area_AF;
-
-v0costPhyto_AF(hhold,c_tree,field,inten)=v0_cropCoef_AF(hhold,c_tree,field,inten,"phyto_localCurrency_ha")/p_pricescalar;
+v0costPhyto_AF(hhold,c_tree,field,inten) = 
+    (v0_cropCoef_AF(hhold,c_tree,field,inten,"phyto_localCurrency_ha")/p_pricescalar)$ v0_cropCoef_AF(hhold,c_tree,field,inten,"phyto_localCurrency_ha");
+*v0costPhyto_AF(hhold,c_tree,field,inten)=v0_cropCoef_AF(hhold,c_tree,field,inten,"phyto_localCurrency_ha")/p_pricescalar;
 v0costOther_AF(hhold,c_tree,field,inten)=v0_cropCoef_AF(hhold,c_tree,field,inten,"other_localCurrency_ha")/p_pricescalar;
 p_taskLabor_cost(c_tree,task_tree)=p_taskLabor_cost_LocalCur(c_tree,task_tree)/p_pricescalar;
 p_buyPrice_tree(inputprice_tree,c_tree)=p_buyPrice_tree_LocalCur(inputprice_tree,c_tree)/p_pricescalar;
@@ -1484,358 +1490,358 @@ $exit
 
 
 
-$label set_database_reinitialize
-
-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
-* SECTION 2: Crop Activity Data
-*            - Loads coefficients for crop activities
-*            - Handles two intensification levels (extensive and intensive)
-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
-* Declare parameters for crop data
-*-- crop data parameters and livestock prices
-
-
-* Process and map raw crop data to model parameters
-p_cropCoef(hhold,crop_activity,field,inten,NameSeed)  = p_cropCoef_raw(hhold,crop_activity,field,inten,"seeds_kg_ha");
-p_cropCoef(hhold,crop_activity,field,inten,NameNitr)  = p_cropCoef_raw(hhold,crop_activity,field,inten,"nitr_kg_ha");
-p_cropCoef(hhold,crop_activity,field,inten,NameYield) = p_cropCoef_raw(hhold,crop_activity,field,inten,"yield_kg_ha");
-p_cropCoef(hhold,crop_activity,field,inten,NameStraw) = p_cropCoef_raw(hhold,crop_activity,field,inten,"ystraw_kg_ha");
-p_cropCoef(hhold,crop_activity,field,inten,NamePhyto) = p_cropCoef_raw(hhold,crop_activity,field,inten,"phyto_localCurrency_ha");
-p_cropCoef(hhold,crop_activity,field,inten,NameOther) = p_cropCoef_raw(hhold,crop_activity,field,inten,"other_localCurrency_ha");
-p_cropCoef(hhold,crop_activity,field,inten,NameArea) = p_cropCoef_raw(hhold,crop_activity,field,inten,"area_ha");
-p_perresmulch(inout)=p_resmulch(inout);
-p_residuedep = residuedep;
-p_seedData(hhold,crop_activity,NameseedOnFarm) =  smax((field,inten),p_cropCoef_raw(hhold,crop_activity,field,inten,"seeds_onFarm_ha"));
-p_seedData(hhold,crop_activity,NameseedTotal)= smax((field,inten),p_cropCoef_raw(hhold,crop_activity,field,inten,"seeds_kg_ha"));
-
-*-- write to labor requirement parameter
-p_labReqTask(hhold,crop_activity,inten,NamePlanting) =  labReqTask(hhold,crop_activity,inten,"plant_persday_ha");
-p_labReqTask(hhold,crop_activity,inten,NameWeeding)  =  labReqTask(hhold,crop_activity,inten,"weed_persday_ha");
-p_labReqTask(hhold,crop_activity,inten,NameHerbicide)=  labReqTask(hhold,crop_activity,inten,"herb_persday_ha");
-p_labReqTask(hhold,crop_activity,inten,NameChe_fert) =  labReqTask(hhold,crop_activity,inten,"chemfer_persday_ha");
-p_labReqTask(hhold,crop_activity,inten,NameOrg_fert) =  labReqTask(hhold,crop_activity,inten,"orgfer_persday_ha");
-p_labReqTask(hhold,crop_activity,inten,NamePesticide)=  labReqTask(hhold,crop_activity,inten,"pest_persday_ha");
-p_labReqTask(hhold,crop_activity,inten,NameHarvest)  =  labReqTask(hhold,crop_activity,inten,"harv_persday_ha");
-p_laborReq(hhold,crop_activity,inten,m) = sum(c_t_m(crop_activity,task,m), p_labReqTask(hhold,crop_activity,inten,task) );
-
-
-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
-* SECTION 3: Farm and Output Data
-*            - Loads farm-level information including land use and labor
-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
-
-
-
-* Calculate farm data parameters
-p_farmData(hhold,'allc',field,'cropland') = sum((crop_activity,inten),p_cropCoef_raw(hhold,crop_activity,field,inten,"area_ha"));
-p_farmData(hhold,'allc','total','cropland') = sum((crop_activity,field,inten),p_cropCoef_raw(hhold,crop_activity,field,inten,"area_ha"));
-p_farmData(hhold,'labor','family','total')  =  farmlabData_raw(hhold,'fam_m_persday_ha')+ farmlabData_raw(hhold,'fam_f_persday_ha');
-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
-
-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
-* SECTION 4: Household and Consumption Data
-*            - Loads demographic and consumption information
-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
-
-
-*Set NameHH / hh_size/ ;
-p_hholdData(hhold,'hh_size')        = hholdData_raw(hhold,'hh_size');
-p_hholdData(hhold,'lab_family')     = p_farmData(hhold,'labor','family','total')  ;
-p_hholdData(hhold,'inc_offfarm')    = hholdData_raw(hhold,'inc_offfarm');
-p_consoData(hhold,gd,'ave') = consodata_raw(hhold,gd,'average');
-
-
-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
-* SECTION 5: Price Data
-*            - Loads and processes price information for all commodities
-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
-
-
-*in localCurrency
-p_cpriData(hhold,inout,'buyPrice') =   cpriData_raw(hhold,inout,'buyPrice');
-p_cpriData(hhold,inout,'selPrice')=    cpriData_raw(hhold,inout,'selPrice');
-p_gpriData(hhold,gd,'p_good_price')  = gpriData_raw(hhold,gd,'p_good_price');
-p_spriData(hhold,crop_activity,'seedPrice') = spriData_raw(hhold,crop_activity,'pseed_localCurrency_kg');
-*in USD
-
-p_cropCoef(hhold,crop_activity,field,inten,NamePhyto)= p_cropCoef(hhold,crop_activity,field,inten,NamePhyto)/p_pricescalar;
-p_cropCoef(hhold,crop_activity,field,inten,NameOther)= p_cropCoef(hhold,crop_activity,field,inten,NameOther)/p_pricescalar;
-p_hholdData(hhold,'inc_offfarm')=p_hholdData(hhold,'inc_offfarm')/p_pricescalar ;
-
-p_cpriData(hhold,inout,'buyPrice') =   cpriData_raw(hhold,inout,'buyPrice')/p_pricescalar;
-p_cpriData(hhold,inout,'selPrice')=    cpriData_raw(hhold,inout,'selPrice')/p_pricescalar;
-p_gpriData(hhold,gd,'p_good_price')  = gpriData_raw(hhold,gd,'p_good_price')/p_pricescalar;
-p_spriData(hhold,crop_activity,'seedPrice') = spriData_raw(hhold,crop_activity,'pseed_localCurrency_kg')/p_pricescalar;
-p_distanceprice(hhold)=cpriData_raw(hhold,'distance_km','buyPrice')/p_pricescalar;
-p_selPrice(hhold,inout)=  p_cpriData(hhold,inout,'selprice');
-p_buyPrice(hhold,inout)=  p_cpriData(hhold,inout,'buyprice');
-p_seedbuypri(hhold,crop_activity)= p_spriData(hhold,crop_activity,'seedPrice') ;
-
-
-
-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
-* SECTION 6: Crop Module (Conditional)
-*            - Defines crop-related variables and equations when crop module is active
-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
-
-
-$iftheni %CROP%==on
-
-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
-* #1 Model parameters
-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
-
-*set previouscrop;
-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
-* #2 Load crop activity coefficients
-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
-*Similar to lines in bioph module delete
-*-- crop yield
-v0_Yld_C(hhold,crop_activity,'allp',field,inten) = sum(NameYield,p_cropCoef(hhold,crop_activity,field,inten,NameYield));
-*TFix: yield by activity needed => assume similar yields over all preceding crops
-v0_Yld_C(hhold,crop_activity,crop_preceding,field,inten) $(c_c(crop_activity,crop_preceding)) = v0_Yld_C(hhold,crop_activity,'allp',field,inten);
-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
-*-- Cropland allocation
-v0_Land_C(hhold,crop_activity,field) = sum((inten,NameArea), p_cropCoef(hhold,crop_activity,field,inten,NameArea)) ;
-display v0_Land_C;
-v0_Use_Land_C(hhold,field) = sum(crop_activity, v0_Land_C(hhold,crop_activity,field)) ;
-V0_Plant_C(hhold,crop_activity,'allp',field,inten) = sum(NameArea,p_cropCoef(hhold,crop_activity,field,inten,NameArea));
-V0_Plant_C(hhold,crop_activity,previouscrop,field,inten) = V0_Plant_C(hhold,crop_activity,'allp',field,inten);
-*-- Crop production (kg)
-v0_Prd_C(hhold,crop_activity,field,inten) = sum(NameYield,p_cropCoef(hhold,crop_activity,field,inten,NameYield))*sum(NameArea,p_cropCoef(hhold,crop_activity,field,inten,NameArea));
-v0_prodQuant(hhold,c_product) = sum((a_j(crop_activity,c_product),field,inten), sum(NameYield,p_cropCoef(hhold,crop_activity,field,inten,NameYield))*sum(NameArea,p_cropCoef(hhold,crop_activity,field,inten,NameArea)));
-v0_prodQuant(hhold,ck) = sum((a_k(crop_activity,ck),field,inten), sum(NameStraw,p_cropCoef(hhold,crop_activity,field,inten,NameStraw))*sum(NameArea,p_cropCoef(hhold,crop_activity,field,inten,NameArea)));
-
-*~~~~~~~~~~~~~~~~ input requirements    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
-*-- endogenous activities => crop coefficients
-*   .. labor not included
-p_inputReq(hhold,crop_activity_endo,field,inten,inpq) $(not NameLabor(inpq)) = p_cropcoef(hhold,crop_activity_endo,field,inten,inpq);
-p_inputReq(hhold,crop_activity_endo,field,inten,inpv) = p_cropcoef(hhold,crop_activity_endo,field,inten,inpv);
-p_inputReq(hhold,crop_activity_endo,field,inten,NameFert) $(sum(NameNitr,p_inputReq(hhold,crop_activity_endo,field,inten,NameNitr))) = 0;
-
-*~~~~~~~~~~~~~~~~ inputs and outputs      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
-*-- initial input use and cost
-V0_Use_Input_C(hhold,crop_activity,i) = sum((field,inten,NameArea), p_cropCoef(hhold,crop_activity,field,inten,NameArea)*p_inputReq(hhold,crop_activity,field,inten,i));
-V0_Use_Seed_C(hhold,crop_activity,NameseedOnFarm) = p_seedData(hhold,crop_activity,NameseedOnFarm) ;
-V0_Use_Seed_C(hhold,crop_activity,NameseedTotal)  = p_seedData(hhold,crop_activity,NameseedTotal) ;
-v0_inputCost(hhold,crop_activity_endo,inpv)=sum((field,inten),p_cropcoef(hhold,crop_activity_endo,field,inten,inpv));
-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
-* #2 Variables
-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
-
-
-*=================================================
-* The below code map sets
-*=================================================
-
-
-*Creation of the map for the harvest of coproducts
-* Set c_t_m_map(cken, m) to yes if harvest occurs in month m for activity crop_activity_endo
-loop((crop_activity_endo, cken)$activity_output(crop_activity_endo, cken),
-  c_t_m_map(cken, m)$c_t_m(crop_activity_endo, 'harvest', m) = yes;
-);
-
-* Coproduct handling 
-* Identification of the months in which coproducts are harvested and flags subsequent months.
-*(count to track the first harvest month and flag for the subsequent month)
-loop(cken,  
-  count = 0; 
-  stopflag = 0;  
-  loop(m$(stopflag eq 0),  
-    count = count + 1;  
-    indic(cken, m)$c_t_m_map(cken, m) = 1;  
-    stopflag$(indic(cken, m) eq 1) = 1; 
-  );
-  flag(cken, m)$(ord(m) ge count) = 1;  
-);
-
-* Calculation of coproduct indicators 
-* This section calculates indicators (flagm) for coproducts based on their harvest order.
-loop(cken,  
-  countm = 0;  
-  loop(m$flag(cken, m),  
-    flagm(cken, m) = 1$(countm = 0);  
-    flagm(cken, m) = 1 - (p_residuedep * countm)$(countm > 0);  
-    countm = countm + 1; 
-  );
-);
-
-
-$endif
-
-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
-* SECTION 7: Agroforestry Module (Conditional)
-*            - Defines orchard/agroforestry components when module is active
-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
-
-* Declare agroforestry sets and parameters
-$iftheni %ORCHARD%==on
-
-c_treej(outm) = yes $(sum(activity_output(c_tree,outm),1));
-a_c_treej(c_tree,c_treej) $(activity_output(c_tree,c_treej)) = yes ;
-
-* Process agroforestry data
-V0_Area_AF(hhold,field,inten)=sum(c_tree,v0_cropCoef_AF(hhold,c_tree,field,inten,"area_ha")) ;
-v0costPhyto_AF(hhold,c_tree,field,inten)=v0_cropCoef_AF(hhold,c_tree,field,inten,"phyto_localCurrency_ha")/p_pricescalar;
-v0costOther_AF(hhold,c_tree,field,inten)=v0_cropCoef_AF(hhold,c_tree,field,inten,"other_localCurrency_ha")/p_pricescalar;
-p_taskLabor_cost(task_tree)=p_taskLabor_cost_LocalCur(task_tree)/p_pricescalar;
-p_buyPrice_tree(inputprice_tree,c_tree)=p_buyPrice_tree_LocalCur(inputprice_tree,c_tree)/p_pricescalar;
-
-p_Labor_Task_AF(hhold,c_tree,inten,NamePlantingAF) =  Labor_Task_AF(hhold,c_tree,inten,"plant_persday_ha");
-p_Labor_Task_AF(hhold,c_tree,inten,NameWeedingAF)  =  Labor_Task_AF(hhold,c_tree,inten,"weed_persday_ha");
-p_Labor_Task_AF(hhold,c_tree,inten,NameGrubbAF)=  Labor_Task_AF(hhold,c_tree,inten,"grubb_persday_ha");
-p_Labor_Task_AF(hhold,c_tree,inten,NameChe_fertAF) =  Labor_Task_AF(hhold,c_tree,inten,"chemfer_persday_ha");
-p_Labor_Task_AF(hhold,c_tree,inten,NameOrg_fertAF) =  Labor_Task_AF(hhold,c_tree,inten,"orgfer_persday_ha");
-p_Labor_Task_AF(hhold,c_tree,inten,NamePesticideAF)=  Labor_Task_AF(hhold,c_tree,inten,"pest_persday_ha");
-p_Labor_Task_AF(hhold,c_tree,inten,NameHarvestAF)  =  Labor_Task_AF(hhold,c_tree,inten,"harv_persday_ha");
-p_Labor_Task_AF(hhold,c_tree,inten,NamePruningAF)  =  Labor_Task_AF(hhold,c_tree,inten,"harv_persday_ha");
-p_laborReq_AF(hhold,c_tree,inten,m) = sum(c_t_m_orchard(c_tree,task_tree,m), p_Labor_Task_AF(hhold,c_tree,inten,task_tree) );
+*$label set_database_reinitialize
 *
-
-$endif
-
-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
-* SECTION 8: Livestock Module (Simplified, Conditional)
-*            - Defines livestock components when module is active
-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
-*============================================================================*
-* #1 DECLARE SETS AND PARAMETERS
-*============================================================================*
-
-$iftheni %LIVESTOCK_simplified%==on
-
-
-
-
-* Process loaded data
-p_selPriceLivestock(hhold,type_animal,ak) = p_selPriceLivestock_raw(hhold,type_animal,ak,'price')/p_pricescalar;
-p_selPriceLivestock(hhold,type_animal,'liveanimal') = p_selPriceLivestock_raw(hhold,type_animal,'liveanimal','price')/p_pricescalar;
-p_yieldLivestock(hhold,type_animal,akmeat) = p_yieldLivestock_raw(hhold,type_animal,akmeat,'yield');
-p_yieldLivestock(hhold,type_animal,akmilk) = p_yieldLivestock_raw(hhold,type_animal,akmilk,'yield');
-
-* Assign parameter values from raw data
-p_othCostLivestock(hhold,type_animal) = p_DataLive(hhold,type_animal,'1','p_othCostLivestock')/p_pricescalar;
-p_costVeterinary(hhold,type_animal) = p_DataLive(hhold,type_animal,'1','p_costVeterinary')/p_pricescalar;
-p_AdditionalCostLivestock(hhold,type_animal) = p_DataLive(hhold,type_animal,'1','p_AdditionalCostLivestock')/p_pricescalar;
-*p_MilkYield(hhold,type_animal) = p_DataLive(hhold,type_animal,'1','p_MilkYield');       
-*p_MeatYield(hhold,type_animal) = p_DataLive(hhold,type_animal,'1','p_MeatYield');        
-p_Repro(hhold,type_animal,age) = p_DataLive(hhold,type_animal,age,'p_BirthRate');       
-p_MortalityRate(hhold,type_animal,age) = p_DataLive(hhold,type_animal,age,'p_MortalityRate');   
-p_LaborReqLivestock(hhold,type_animal,m) = p_DataLive(hhold,type_animal,'1','p_LaborReq')/12;        
-p_prot_metab(hhold,type_animal) = p_DataLive(hhold,type_animal,'1','p_prot_metab');       
-p_ca(hhold,type_animal) = p_DataLive(hhold,type_animal,'1','p_ca');   
-p_initPopulation(hhold,type_animal,age) = p_DataLive(hhold,type_animal,age,'p_initPopulation');
-p_feed_price(hhold,feedc)=p_feed_price_LocalCur(hhold,feedc)/p_pricescalar;
-
-* Create mappings
-a_k(type_animal,ak)$activity_output(type_animal,ak) = yes;
-akmilk(ak) = yes;
-akmeat(ak) = yes;
-
-
-$endif
-
-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
-* SECTION 9: Value Chain Module (Conditional)
-*            - Defines market linkages when module is active
-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
-$iftheni %VALUECHAIN%==on
-
-
-
-
-p_capacity_buyer(inout,buyer)=P_buyer(inout,buyer,"p_capacity_buyer");
-p_labor_buyer(inout,buyer)=P_buyer(inout,buyer,"p_labor_buyer");
-p_distance_buyer(hhold,buyer)=p_distance(hhold,buyer);
-p_price_buyer(inout,buyer)=   P_buyer(inout,buyer,"p_price_buyer")/p_pricescalar;
-
-p_capacity_seller_C(inout,seller_C)=P_seller_C(inout,seller_C,"p_capacity_seller");
-p_labor_seller_C(inout,seller_C)=P_seller_C(inout,seller_C,"p_labor_seller");
-p_distance_seller_C(hhold,seller_C)=p_distance(hhold,seller_C);
-p_price_seller(inout,seller_C)=   P_seller_C(inout,seller_C,"p_price_seller")/p_pricescalar;
-
-p_capacity_seeder(crop_activity,seeder)=P_seeder(crop_activity,seeder,"p_capacity_seeder");
-p_labor_seeder(crop_activity,seeder)=P_seeder(crop_activity,seeder,"p_labor_seeder");
-p_distance_seeder(hhold,seeder)=p_distance(hhold,seeder);
-p_price_seeder(crop_activity,seeder)=   P_seeder(crop_activity,seeder,"p_price_seeder")/p_pricescalar;
-$endif
-
-
-*Value chain and livestock activity
-
-
-$iftheni %LIVESTOCK_simplified%==on
-
-
-
-
-
-p_capacity_seller_A(NamecostVeterinary,seller_A)=P_seller_A(NamecostVeterinary,seller_A,"p_capacity_seller")/p_pricescalar;
-p_labor_seller_A(NamecostVeterinary,seller_A)=P_seller_A(NamecostVeterinary,seller_A,"p_labor_seller");
-p_distance_seller_A(hhold,seller_A)=p_distance(hhold,seller_A);
-p_capacity_seller_A(NameothCostLivestock,seller_A)=P_seller_A(NameothCostLivestock,seller_A,"p_capacity_seller")/p_pricescalar;
-p_labor_seller_A(NameothCostLivestock,seller_A)=P_seller_A(NameothCostLivestock,seller_A,"p_labor_seller");
-p_capacity_seller_A(NameAdditionalCostLivestock,seller_A)=P_seller_A(NameAdditionalCostLivestock,seller_A,"p_capacity_seller")/p_pricescalar;
-p_labor_seller_A(NameAdditionalCostLivestock,seller_A)=P_seller_A(NameAdditionalCostLivestock,seller_A,"p_labor_seller");
-p_distance_seller_A(hhold,seller_A)=p_distance(hhold,seller_A);
-
-p_capacity_Livestock_seller(type_animal,Livestock_seller)=P_Livestock_seller (type_animal,Livestock_seller,"p_capacity_seller");
-p_distance_Livestock_seller(hhold,Livestock_seller)=p_distance(hhold,Livestock_seller);
-p_labor_Livestock_seller(type_animal,Livestock_seller)=P_Livestock_seller(type_animal,Livestock_seller,"p_labor_seller");
-
-p_capacity_Feed_seller(feedc,Feed_seller)=P_Feed_seller (feedc,Feed_seller,"p_capacity_seller");
-p_distance_Feed_seller(hhold,Feed_seller)=p_distance(hhold,Feed_seller);
-p_labor_Feed_seller(feedc,Feed_seller)=P_Feed_seller(feedc,Feed_seller,"p_labor_seller");
-p_price_Feed_seller(feedc,Feed_seller)=   P_Feed_seller(feedc,Feed_seller,"p_price_seller")/p_pricescalar;
-p_price_Livestock_seller(type_animal,Livestock_seller)=   P_Livestock_seller(type_animal,Livestock_seller,"p_price_seller")/p_pricescalar;
-
-loop(inout_a,
-    p_capacity_seller_A(inout_a,seller_A) = P_seller_A(inout_a,seller_A,"p_capacity_seller");
-    p_labor_seller_A(inout_a,seller_A)    = P_seller_A(inout_a,seller_A,"p_labor_seller");
-);
-$endif
-
-*Value chain and agroforestry activity
-
-$iftheni %ORCHARD%==on
-$ifi %VALUECHAIN%==ON p_capacity_seller_AF(inout,seller_AF)=P_seller_AF(inout,seller_AF,"p_capacity_seller");
-$ifi %VALUECHAIN%==ON p_labor_seller_AF(inout,seller_AF)=P_seller_AF(inout,seller_AF,"p_labor_seller");
-$ifi %VALUECHAIN%==ON p_distance_seller_AF(hhold,seller_AF)=p_distance(hhold,seller_AF);
-$ifi %VALUECHAIN%==ON p_price_seller(inout,seller_AF)=   P_seller_AF(inout,seller_AF,"p_price_seller")/p_pricescalar;
-$endif
-
-v0_Land_C(hhold,crop_activity,field)      =  sum((inten,NameArea), p_cropCoef(hhold,crop_activity,field,inten,NameArea)) ;;
-*-- Crop production
-v0_Prd_C(hhold,crop_activity,field,inten) = sum(NameYield,p_cropCoef(hhold,crop_activity,field,inten,NameYield))*sum(NameArea,p_cropCoef(hhold,crop_activity,field,inten,NameArea));
-V0_Use_Input_C(hhold,crop_activity,i) = sum((field,inten,NameArea), p_cropCoef(hhold,crop_activity,field,inten,NameArea)*p_inputReq(hhold,crop_activity,field,inten,i));
-V0_Use_Seed_C(hhold,crop_activity,NameseedOnFarm) = p_seedData(hhold,crop_activity,NameseedOnFarm) ;
-V0_Use_Seed_C(hhold,crop_activity,NameseedTotal)  = p_seedData(hhold,crop_activity,NameseedTotal) ;
-v0_prodQuant(hhold,c_product) = sum((a_j(crop_activity,c_product),field,inten), sum(NameYield,p_cropCoef(hhold,crop_activity,field,inten,NameYield))*sum(NameArea,p_cropCoef(hhold,crop_activity,field,inten,NameArea)));
-v0_prodQuant(hhold,ck) = sum((a_k(crop_activity,ck),field,inten), sum(NameStraw,p_cropCoef(hhold,crop_activity,field,inten,NameStraw))*sum(NameArea,p_cropCoef(hhold,crop_activity,field,inten,NameArea)));
+**~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
+** SECTION 2: Crop Activity Data
+**            - Loads coefficients for crop activities
+**            - Handles two intensification levels (extensive and intensive)
+**~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
+** Declare parameters for crop data
+**-- crop data parameters and livestock prices
+*
+*
+** Process and map raw crop data to model parameters
+*p_cropCoef(hhold,crop_activity,field,inten,NameSeed)  = p_cropCoef_raw(hhold,crop_activity,field,inten,"seeds_kg_ha");
+*p_cropCoef(hhold,crop_activity,field,inten,NameNitr)  = p_cropCoef_raw(hhold,crop_activity,field,inten,"nitr_kg_ha");
+*p_cropCoef(hhold,crop_activity,field,inten,NameYield) = p_cropCoef_raw(hhold,crop_activity,field,inten,"yield_kg_ha");
+*p_cropCoef(hhold,crop_activity,field,inten,NameStraw) = p_cropCoef_raw(hhold,crop_activity,field,inten,"ystraw_kg_ha");
+*p_cropCoef(hhold,crop_activity,field,inten,NamePhyto) = p_cropCoef_raw(hhold,crop_activity,field,inten,"phyto_localCurrency_ha");
+*p_cropCoef(hhold,crop_activity,field,inten,NameOther) = p_cropCoef_raw(hhold,crop_activity,field,inten,"other_localCurrency_ha");
+*p_cropCoef(hhold,crop_activity,field,inten,NameArea) = p_cropCoef_raw(hhold,crop_activity,field,inten,"area_ha");
+*p_perresmulch(inout)=p_resmulch(inout);
+*p_residuedep = residuedep;
+*p_seedData(hhold,crop_activity,NameseedOnFarm) =  smax((field,inten),p_cropCoef_raw(hhold,crop_activity,field,inten,"seeds_onFarm_ha"));
+*p_seedData(hhold,crop_activity,NameseedTotal)= smax((field,inten),p_cropCoef_raw(hhold,crop_activity,field,inten,"seeds_kg_ha"));
+*
+**-- write to labor requirement parameter
+*p_labReqTask(hhold,crop_activity,inten,NamePlanting) =  labReqTask(hhold,crop_activity,inten,"plant_persday_ha");
+*p_labReqTask(hhold,crop_activity,inten,NameWeeding)  =  labReqTask(hhold,crop_activity,inten,"weed_persday_ha");
+*p_labReqTask(hhold,crop_activity,inten,NameHerbicide)=  labReqTask(hhold,crop_activity,inten,"herb_persday_ha");
+*p_labReqTask(hhold,crop_activity,inten,NameChe_fert) =  labReqTask(hhold,crop_activity,inten,"chemfer_persday_ha");
+*p_labReqTask(hhold,crop_activity,inten,NameOrg_fert) =  labReqTask(hhold,crop_activity,inten,"orgfer_persday_ha");
+*p_labReqTask(hhold,crop_activity,inten,NamePesticide)=  labReqTask(hhold,crop_activity,inten,"pest_persday_ha");
+*p_labReqTask(hhold,crop_activity,inten,NameHarvest)  =  labReqTask(hhold,crop_activity,inten,"harv_persday_ha");
+*p_laborReq(hhold,crop_activity,inten,m) = sum(c_t_m(crop_activity,task,m), p_labReqTask(hhold,crop_activity,inten,task) );
+*
+*
+**~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
+** SECTION 3: Farm and Output Data
+**            - Loads farm-level information including land use and labor
+**~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
+*
+*
+*
+** Calculate farm data parameters
+*p_farmData(hhold,'allc',field,'cropland') = sum((crop_activity,inten),p_cropCoef_raw(hhold,crop_activity,field,inten,"area_ha"));
+*p_farmData(hhold,'allc','total','cropland') = sum((crop_activity,field,inten),p_cropCoef_raw(hhold,crop_activity,field,inten,"area_ha"));
+*p_farmData(hhold,'labor','family','total')  =  farmlabData_raw(hhold,'fam_m_persday_ha')+ farmlabData_raw(hhold,'fam_f_persday_ha');
+**~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
+*
+**~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
+** SECTION 4: Household and Consumption Data
+**            - Loads demographic and consumption information
+**~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
+*
+*
+**Set NameHH / hh_size/ ;
+*p_hholdData(hhold,'hh_size')        = hholdData_raw(hhold,'hh_size');
+*p_hholdData(hhold,'lab_family')     = p_farmData(hhold,'labor','family','total')  ;
+*p_hholdData(hhold,'inc_offfarm')    = hholdData_raw(hhold,'inc_offfarm');
+*p_consoData(hhold,gd,'ave') = consodata_raw(hhold,gd,'average');
+*
+*
+**~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
+** SECTION 5: Price Data
+**            - Loads and processes price information for all commodities
+**~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
+*
+*
+**in localCurrency
+*p_cpriData(hhold,inout,'buyPrice') =   cpriData_raw(hhold,inout,'buyPrice');
+*p_cpriData(hhold,inout,'selPrice')=    cpriData_raw(hhold,inout,'selPrice');
+*p_gpriData(hhold,gd,'p_good_price')  = gpriData_raw(hhold,gd,'p_good_price');
+*p_spriData(hhold,crop_activity,'seedPrice') = spriData_raw(hhold,crop_activity,'pseed_localCurrency_kg');
+**in USD
+*
+*p_cropCoef(hhold,crop_activity,field,inten,NamePhyto)= p_cropCoef(hhold,crop_activity,field,inten,NamePhyto)/p_pricescalar;
+*p_cropCoef(hhold,crop_activity,field,inten,NameOther)= p_cropCoef(hhold,crop_activity,field,inten,NameOther)/p_pricescalar;
+*p_hholdData(hhold,'inc_offfarm')=p_hholdData(hhold,'inc_offfarm')/p_pricescalar ;
+*
+*p_cpriData(hhold,inout,'buyPrice') =   cpriData_raw(hhold,inout,'buyPrice')/p_pricescalar;
+*p_cpriData(hhold,inout,'selPrice')=    cpriData_raw(hhold,inout,'selPrice')/p_pricescalar;
+*p_gpriData(hhold,gd,'p_good_price')  = gpriData_raw(hhold,gd,'p_good_price')/p_pricescalar;
+*p_spriData(hhold,crop_activity,'seedPrice') = spriData_raw(hhold,crop_activity,'pseed_localCurrency_kg')/p_pricescalar;
+*p_distanceprice(hhold)=cpriData_raw(hhold,'distance_km','buyPrice')/p_pricescalar;
+*p_selPrice(hhold,inout)=  p_cpriData(hhold,inout,'selprice');
+*p_buyPrice(hhold,inout)=  p_cpriData(hhold,inout,'buyprice');
+*p_seedbuypri(hhold,crop_activity)= p_spriData(hhold,crop_activity,'seedPrice') ;
+*
+*
+*
+**~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
+** SECTION 6: Crop Module (Conditional)
+**            - Defines crop-related variables and equations when crop module is active
+**~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
+*
+*
+*$iftheni %CROP%==on
+*
+**~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
+** #1 Model parameters
+**~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
+*
+**set previouscrop;
+**~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
+** #2 Load crop activity coefficients
+**~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
+**Similar to lines in bioph module delete
+**-- crop yield
+*v0_Yld_C(hhold,crop_activity,'allp',field,inten) = sum(NameYield,p_cropCoef(hhold,crop_activity,field,inten,NameYield));
+**TFix: yield by activity needed => assume similar yields over all preceding crops
+*v0_Yld_C(hhold,crop_activity,crop_preceding,field,inten) $(c_c(crop_activity,crop_preceding)) = v0_Yld_C(hhold,crop_activity,'allp',field,inten);
+**~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
+**-- Cropland allocation
+*v0_Land_C(hhold,crop_activity,field) = sum((inten,NameArea), p_cropCoef(hhold,crop_activity,field,inten,NameArea)) ;
+*display v0_Land_C;
+*v0_Use_Land_C(hhold,field) = sum(crop_activity, v0_Land_C(hhold,crop_activity,field)) ;
+*V0_Plant_C(hhold,crop_activity,'allp',field,inten) = sum(NameArea,p_cropCoef(hhold,crop_activity,field,inten,NameArea));
+*V0_Plant_C(hhold,crop_activity,previouscrop,field,inten) = V0_Plant_C(hhold,crop_activity,'allp',field,inten);
+**-- Crop production (kg)
+*v0_Prd_C(hhold,crop_activity,field,inten) = sum(NameYield,p_cropCoef(hhold,crop_activity,field,inten,NameYield))*sum(NameArea,p_cropCoef(hhold,crop_activity,field,inten,NameArea));
+*v0_prodQuant(hhold,c_product) = sum((a_j(crop_activity,c_product),field,inten), sum(NameYield,p_cropCoef(hhold,crop_activity,field,inten,NameYield))*sum(NameArea,p_cropCoef(hhold,crop_activity,field,inten,NameArea)));
+*v0_prodQuant(hhold,ck) = sum((a_k(crop_activity,ck),field,inten), sum(NameStraw,p_cropCoef(hhold,crop_activity,field,inten,NameStraw))*sum(NameArea,p_cropCoef(hhold,crop_activity,field,inten,NameArea)));
+*
+**~~~~~~~~~~~~~~~~ input requirements    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
+**-- endogenous activities => crop coefficients
+**   .. labor not included
+*p_inputReq(hhold,crop_activity_endo,field,inten,inpq) $(not NameLabor(inpq)) = p_cropcoef(hhold,crop_activity_endo,field,inten,inpq);
+*p_inputReq(hhold,crop_activity_endo,field,inten,inpv) = p_cropcoef(hhold,crop_activity_endo,field,inten,inpv);
+*p_inputReq(hhold,crop_activity_endo,field,inten,NameFert) $(sum(NameNitr,p_inputReq(hhold,crop_activity_endo,field,inten,NameNitr))) = 0;
+*
+**~~~~~~~~~~~~~~~~ inputs and outputs      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
+**-- initial input use and cost
+*V0_Use_Input_C(hhold,crop_activity,i) = sum((field,inten,NameArea), p_cropCoef(hhold,crop_activity,field,inten,NameArea)*p_inputReq(hhold,crop_activity,field,inten,i));
+*V0_Use_Seed_C(hhold,crop_activity,NameseedOnFarm) = p_seedData(hhold,crop_activity,NameseedOnFarm) ;
+*V0_Use_Seed_C(hhold,crop_activity,NameseedTotal)  = p_seedData(hhold,crop_activity,NameseedTotal) ;
+*v0_inputCost(hhold,crop_activity_endo,inpv)=sum((field,inten),p_cropcoef(hhold,crop_activity_endo,field,inten,inpv));
+**~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
+** #2 Variables
+**~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
+*
+*
+**=================================================
+** The below code map sets
+**=================================================
+*
+*
+**Creation of the map for the harvest of coproducts
+** Set c_t_m_map(cken, m) to yes if harvest occurs in month m for activity crop_activity_endo
+*loop((crop_activity_endo, cken)$activity_output(crop_activity_endo, cken),
+*  c_t_m_map(cken, m)$c_t_m(crop_activity_endo, 'harvest', m) = yes;
+*);
+*
+** Coproduct handling 
+** Identification of the months in which coproducts are harvested and flags subsequent months.
+**(count to track the first harvest month and flag for the subsequent month)
+*loop(cken,  
+*  count = 0; 
+*  stopflag = 0;  
+*  loop(m$(stopflag eq 0),  
+*    count = count + 1;  
+*    indic(cken, m)$c_t_m_map(cken, m) = 1;  
+*    stopflag$(indic(cken, m) eq 1) = 1; 
+*  );
+*  flag(cken, m)$(ord(m) ge count) = 1;  
+*);
+*
+** Calculation of coproduct indicators 
+** This section calculates indicators (flagm) for coproducts based on their harvest order.
+*loop(cken,  
+*  countm = 0;  
+*  loop(m$flag(cken, m),  
+*    flagm(cken, m) = 1$(countm = 0);  
+*    flagm(cken, m) = 1 - (p_residuedep * countm)$(countm > 0);  
+*    countm = countm + 1; 
+*  );
+*);
+*
+*
+*$endif
+*
+**~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
+** SECTION 7: Agroforestry Module (Conditional)
+**            - Defines orchard/agroforestry components when module is active
+**~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
+*
+** Declare agroforestry sets and parameters
+*$iftheni %ORCHARD%==on
+*
+*c_treej(outm) = yes $(sum(activity_output(c_tree,outm),1));
+*a_c_treej(c_tree,c_treej) $(activity_output(c_tree,c_treej)) = yes ;
+*
+** Process agroforestry data
+*V0_Area_AF(hhold,field,inten)=sum(c_tree,v0_cropCoef_AF(hhold,c_tree,field,inten,"area_ha")) ;
+*v0costPhyto_AF(hhold,c_tree,field,inten)=v0_cropCoef_AF(hhold,c_tree,field,inten,"phyto_localCurrency_ha")/p_pricescalar;
+*v0costOther_AF(hhold,c_tree,field,inten)=v0_cropCoef_AF(hhold,c_tree,field,inten,"other_localCurrency_ha")/p_pricescalar;
+*p_taskLabor_cost(task_tree)=p_taskLabor_cost_LocalCur(task_tree)/p_pricescalar;
+*p_buyPrice_tree(inputprice_tree,c_tree)=p_buyPrice_tree_LocalCur(inputprice_tree,c_tree)/p_pricescalar;
+*
+*p_Labor_Task_AF(hhold,c_tree,inten,NamePlantingAF) =  Labor_Task_AF(hhold,c_tree,inten,"plant_persday_ha");
+*p_Labor_Task_AF(hhold,c_tree,inten,NameWeedingAF)  =  Labor_Task_AF(hhold,c_tree,inten,"weed_persday_ha");
+*p_Labor_Task_AF(hhold,c_tree,inten,NameGrubbAF)=  Labor_Task_AF(hhold,c_tree,inten,"grubb_persday_ha");
+*p_Labor_Task_AF(hhold,c_tree,inten,NameChe_fertAF) =  Labor_Task_AF(hhold,c_tree,inten,"chemfer_persday_ha");
+*p_Labor_Task_AF(hhold,c_tree,inten,NameOrg_fertAF) =  Labor_Task_AF(hhold,c_tree,inten,"orgfer_persday_ha");
+*p_Labor_Task_AF(hhold,c_tree,inten,NamePesticideAF)=  Labor_Task_AF(hhold,c_tree,inten,"pest_persday_ha");
+*p_Labor_Task_AF(hhold,c_tree,inten,NameHarvestAF)  =  Labor_Task_AF(hhold,c_tree,inten,"harv_persday_ha");
+*p_Labor_Task_AF(hhold,c_tree,inten,NamePruningAF)  =  Labor_Task_AF(hhold,c_tree,inten,"harv_persday_ha");
+*p_laborReq_AF(hhold,c_tree,inten,m) = sum(c_t_m_orchard(c_tree,task_tree,m), p_Labor_Task_AF(hhold,c_tree,inten,task_tree) );
+**
+*
+*$endif
+*
+**~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
+** SECTION 8: Livestock Module (Simplified, Conditional)
+**            - Defines livestock components when module is active
+**~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
+**============================================================================*
+** #1 DECLARE SETS AND PARAMETERS
+**============================================================================*
+*
+*$iftheni %LIVESTOCK_simplified%==on
+*
+*
+*
+*
+** Process loaded data
+*p_selPriceLivestock(hhold,type_animal,ak) = p_selPriceLivestock_raw(hhold,type_animal,ak,'price')/p_pricescalar;
+*p_selPriceLivestock(hhold,type_animal,'liveanimal') = p_selPriceLivestock_raw(hhold,type_animal,'liveanimal','price')/p_pricescalar;
+*p_yieldLivestock(hhold,type_animal,akmeat) = p_yieldLivestock_raw(hhold,type_animal,akmeat,'yield');
+*p_yieldLivestock(hhold,type_animal,akmilk) = p_yieldLivestock_raw(hhold,type_animal,akmilk,'yield');
+*
+** Assign parameter values from raw data
+*p_othCostLivestock(hhold,type_animal) = p_DataLive(hhold,type_animal,'1','p_othCostLivestock')/p_pricescalar;
+*p_costVeterinary(hhold,type_animal) = p_DataLive(hhold,type_animal,'1','p_costVeterinary')/p_pricescalar;
+*p_AdditionalCostLivestock(hhold,type_animal) = p_DataLive(hhold,type_animal,'1','p_AdditionalCostLivestock')/p_pricescalar;
+**p_MilkYield(hhold,type_animal) = p_DataLive(hhold,type_animal,'1','p_MilkYield');       
+**p_MeatYield(hhold,type_animal) = p_DataLive(hhold,type_animal,'1','p_MeatYield');        
+*p_Repro(hhold,type_animal,age) = p_DataLive(hhold,type_animal,age,'p_BirthRate');       
+*p_MortalityRate(hhold,type_animal,age) = p_DataLive(hhold,type_animal,age,'p_MortalityRate');   
+*p_LaborReqLivestock(hhold,type_animal,m) = p_DataLive(hhold,type_animal,'1','p_LaborReq')/12;        
+*p_prot_metab(hhold,type_animal) = p_DataLive(hhold,type_animal,'1','p_prot_metab');       
+*p_ca(hhold,type_animal) = p_DataLive(hhold,type_animal,'1','p_ca');   
+*p_initPopulation(hhold,type_animal,age) = p_DataLive(hhold,type_animal,age,'p_initPopulation');
+*p_feed_price(hhold,feedc)=p_feed_price_LocalCur(hhold,feedc)/p_pricescalar;
+*
+** Create mappings
+*a_k(type_animal,ak)$activity_output(type_animal,ak) = yes;
+*akmilk(ak) = yes;
+*akmeat(ak) = yes;
+*
+*
+*$endif
+*
+**~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
+** SECTION 9: Value Chain Module (Conditional)
+**            - Defines market linkages when module is active
+**~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
+*$iftheni %VALUECHAIN%==on
+*
+*
+*
+*
+*p_capacity_buyer(inout,buyer)=P_buyer(inout,buyer,"p_capacity_buyer");
+*p_labor_buyer(inout,buyer)=P_buyer(inout,buyer,"p_labor_buyer");
+*p_distance_buyer(hhold,buyer)=p_distance(hhold,buyer);
+*p_price_buyer(inout,buyer)=   P_buyer(inout,buyer,"p_price_buyer")/p_pricescalar;
+*
+*p_capacity_seller_C(inout,seller_C)=P_seller_C(inout,seller_C,"p_capacity_seller");
+*p_labor_seller_C(inout,seller_C)=P_seller_C(inout,seller_C,"p_labor_seller");
+*p_distance_seller_C(hhold,seller_C)=p_distance(hhold,seller_C);
+*p_price_seller(inout,seller_C)=   P_seller_C(inout,seller_C,"p_price_seller")/p_pricescalar;
+*
+*p_capacity_seeder(crop_activity,seeder)=P_seeder(crop_activity,seeder,"p_capacity_seeder");
+*p_labor_seeder(crop_activity,seeder)=P_seeder(crop_activity,seeder,"p_labor_seeder");
+*p_distance_seeder(hhold,seeder)=p_distance(hhold,seeder);
+*p_price_seeder(crop_activity,seeder)=   P_seeder(crop_activity,seeder,"p_price_seeder")/p_pricescalar;
+*$endif
+*
+*
+**Value chain and livestock activity
+*
+*
+*$iftheni %LIVESTOCK_simplified%==on
 *
 *
 *
 *
 *
-
-
-
-
-
-
-
-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
-* After water stress we add the Nitogen
-*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
-
-*loading agronomic parameters
-
-
-***DIVERSITY****
-****DIVERSITY
-* Total number of observations (households × years × crops)
-
+*p_capacity_seller_A(NamecostVeterinary,seller_A)=P_seller_A(NamecostVeterinary,seller_A,"p_capacity_seller")/p_pricescalar;
+*p_labor_seller_A(NamecostVeterinary,seller_A)=P_seller_A(NamecostVeterinary,seller_A,"p_labor_seller");
+*p_distance_seller_A(hhold,seller_A)=p_distance(hhold,seller_A);
+*p_capacity_seller_A(NameothCostLivestock,seller_A)=P_seller_A(NameothCostLivestock,seller_A,"p_capacity_seller")/p_pricescalar;
+*p_labor_seller_A(NameothCostLivestock,seller_A)=P_seller_A(NameothCostLivestock,seller_A,"p_labor_seller");
+*p_capacity_seller_A(NameAdditionalCostLivestock,seller_A)=P_seller_A(NameAdditionalCostLivestock,seller_A,"p_capacity_seller")/p_pricescalar;
+*p_labor_seller_A(NameAdditionalCostLivestock,seller_A)=P_seller_A(NameAdditionalCostLivestock,seller_A,"p_labor_seller");
+*p_distance_seller_A(hhold,seller_A)=p_distance(hhold,seller_A);
+*
+*p_capacity_Livestock_seller(type_animal,Livestock_seller)=P_Livestock_seller (type_animal,Livestock_seller,"p_capacity_seller");
+*p_distance_Livestock_seller(hhold,Livestock_seller)=p_distance(hhold,Livestock_seller);
+*p_labor_Livestock_seller(type_animal,Livestock_seller)=P_Livestock_seller(type_animal,Livestock_seller,"p_labor_seller");
+*
+*p_capacity_Feed_seller(feedc,Feed_seller)=P_Feed_seller (feedc,Feed_seller,"p_capacity_seller");
+*p_distance_Feed_seller(hhold,Feed_seller)=p_distance(hhold,Feed_seller);
+*p_labor_Feed_seller(feedc,Feed_seller)=P_Feed_seller(feedc,Feed_seller,"p_labor_seller");
+*p_price_Feed_seller(feedc,Feed_seller)=   P_Feed_seller(feedc,Feed_seller,"p_price_seller")/p_pricescalar;
+*p_price_Livestock_seller(type_animal,Livestock_seller)=   P_Livestock_seller(type_animal,Livestock_seller,"p_price_seller")/p_pricescalar;
+*
+*loop(inout_a,
+*    p_capacity_seller_A(inout_a,seller_A) = P_seller_A(inout_a,seller_A,"p_capacity_seller");
+*    p_labor_seller_A(inout_a,seller_A)    = P_seller_A(inout_a,seller_A,"p_labor_seller");
+*);
+*$endif
+*
+**Value chain and agroforestry activity
+*
+*$iftheni %ORCHARD%==on
+*$ifi %VALUECHAIN%==ON p_capacity_seller_AF(inout,seller_AF)=P_seller_AF(inout,seller_AF,"p_capacity_seller");
+*$ifi %VALUECHAIN%==ON p_labor_seller_AF(inout,seller_AF)=P_seller_AF(inout,seller_AF,"p_labor_seller");
+*$ifi %VALUECHAIN%==ON p_distance_seller_AF(hhold,seller_AF)=p_distance(hhold,seller_AF);
+*$ifi %VALUECHAIN%==ON p_price_seller(inout,seller_AF)=   P_seller_AF(inout,seller_AF,"p_price_seller")/p_pricescalar;
+*$endif
+*
+*v0_Land_C(hhold,crop_activity,field)      =  sum((inten,NameArea), p_cropCoef(hhold,crop_activity,field,inten,NameArea)) ;;
+**-- Crop production
+*v0_Prd_C(hhold,crop_activity,field,inten) = sum(NameYield,p_cropCoef(hhold,crop_activity,field,inten,NameYield))*sum(NameArea,p_cropCoef(hhold,crop_activity,field,inten,NameArea));
+*V0_Use_Input_C(hhold,crop_activity,i) = sum((field,inten,NameArea), p_cropCoef(hhold,crop_activity,field,inten,NameArea)*p_inputReq(hhold,crop_activity,field,inten,i));
+*V0_Use_Seed_C(hhold,crop_activity,NameseedOnFarm) = p_seedData(hhold,crop_activity,NameseedOnFarm) ;
+*V0_Use_Seed_C(hhold,crop_activity,NameseedTotal)  = p_seedData(hhold,crop_activity,NameseedTotal) ;
+*v0_prodQuant(hhold,c_product) = sum((a_j(crop_activity,c_product),field,inten), sum(NameYield,p_cropCoef(hhold,crop_activity,field,inten,NameYield))*sum(NameArea,p_cropCoef(hhold,crop_activity,field,inten,NameArea)));
+*v0_prodQuant(hhold,ck) = sum((a_k(crop_activity,ck),field,inten), sum(NameStraw,p_cropCoef(hhold,crop_activity,field,inten,NameStraw))*sum(NameArea,p_cropCoef(hhold,crop_activity,field,inten,NameArea)));
+**
+**
+**
+**
+**
 *
 *
-
-$exit
+*
+*
+*
+*
+*
+**~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
+** After water stress we add the Nitogen
+**~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
+*
+**loading agronomic parameters
+*
+*
+****DIVERSITY****
+*****DIVERSITY
+** Total number of observations (households × years × crops)
+*
+**
+**
+*
+*$exit

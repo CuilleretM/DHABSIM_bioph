@@ -26,6 +26,8 @@ p_selPriceLivestock;
 * Fix self-consumption to zero for households without output goods
 v_selfCons.fx(hhold,ak,y)$[not sum(gd, output_good(ak,gd))] = 0;
 V_slaughter.up(hhold,type_animal,age,'y01') = p_initPopulation(hhold,type_animal,age);
+
+v_FeedConsumed.up(hhold,feedc,type_animal,y)=100000;
 *============================================================================*
 * #2 EQUATION DECLARATIONS
 *============================================================================*
@@ -73,6 +75,7 @@ EQ_INT2_NB(hhold,type_animal,y)
 *for birthrate and deathrate
 EQ_INT1_D(hhold,type_animal,age,y)
 EQ_INT2_D(hhold,type_animal,age,y)
+
 
 ;
 
@@ -161,10 +164,12 @@ e_FeedAvailable(hhold,feedc,y)..
     v_FeedAvailable(hhold,feedc,y) =E= v_FeedPurchase(hhold,feedc,y)
 $ifi %CROP%==ON + sum(cken$sameas(feedc,cken), v_residuesfeed(hhold,cken,y))
 ;
+
 e_FeedBalance(hhold,feedc,y).. 
     v_FeedAvailable(hhold,feedc,y) =G= 
     sum(type_animal$animal_feed(type_animal,feedc), 
         sum(age, v_FeedConsumed(hhold,feedc,type_animal,y) * V_animals(hhold,type_animal,age,y)));
+
 
 
 e_FeedEnergy(hhold,type_animal,y).. 

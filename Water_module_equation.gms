@@ -76,8 +76,8 @@ $exit
 * ================================================================
 
 $Label first_sim
-scalar BigExcess /100000/;
-scalar BigKs /50/;
+scalar BigExcess /10000000/;
+scalar BigKs /150000/;
 scalar tinywater /1e-5/;
 binary Variable
     b_KS(hhold,crop_activity,field,inten,m,y)

@@ -66,6 +66,8 @@ Positive Variables
 ;
 
 
+
+
 Variables
     TOTAL_NSTRESS_SUM                                    'Sum of all nitrogen stress'
 ;
@@ -98,7 +100,7 @@ Equation
 
 * Discretization should be big enough and tiny small enough
 Scalar tiny / 1e-5 /
-discretization /10000/;
+discretization /10000000/;
 
 * Binary variable
 binary variable
@@ -141,11 +143,13 @@ E_N_MINERALIZATION(hhold,field,y)..
 
 *Residue calculation
 E_NRES_ini(hhold,field,y)..
-    v_Nres(hhold,field,y) =e= (p_Nres_raw + 
+    v_Nres(hhold,field,y) =e= (p_Nres_raw $ (p_landField(hhold,field))
+    + 
         sum((inten,crop_activity_endo,ck) $ a_k(crop_activity_endo,ck),
             p_Nres(hhold,ck,field,inten) * p_MSres * p_effr(ck)
         )
-    ) / p_landField(hhold,field);
+    ) / (p_landField(hhold,field)+0.00001 $ (not p_landField(hhold,field)))
+;
 
 * Nitrogen leaching (10% of fertilizer)
 E_N_LEACHING(hhold,crop_activity_endo,field,inten,y)..
@@ -221,7 +225,9 @@ Scalar last_year;
 display p_Nres;
 display p_MSres
 p_effr
-p_landField;
+p_landField
+p_Npot;
+
 $exit
 
 

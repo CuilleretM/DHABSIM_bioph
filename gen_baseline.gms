@@ -16,16 +16,16 @@ $offtext
 *~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
 $offsymxref
 $onglobal
-*option limrow=20;
+option limrow=15;
 *option optcr = 0.001
-*option optca = 0.0001
-*option lp = CPLEX;
+*option optca = 0.000001
+option lp = CPLEX;
 *option nlp = IPOPT;
 option minlp = baron;
 option rminlp = baron;
 option threads = 30;
 *option iterlim = 200000;
-*option reslim = 150;
+*option reslim = 100;
 *~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
 * #1 General sets + settings
 * Set_database.gms has been ran to create the necessary database

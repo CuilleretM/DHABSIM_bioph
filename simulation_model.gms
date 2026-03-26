@@ -33,8 +33,8 @@ $ifi %CROP%==on  +(SUM((crop_activity,field,inten,m),p_irrigation_opt_fixed(hhol
 
 E_QN ..
       V_QN =E= 0    
-$ifi %CROP%==on  +p_Nl_raw*(sum((hhold,y),sum(crop_activity_endo, sum(NameNitr,V_Use_Input_C(hhold,crop_activity_endo,NameNitr,y)))))
-$ifi %ORCHARD%==on + p_Nl_raw* sum((hhold,c_tree,y),V_Nfert_AF(hhold,c_tree,y))
+$ifi %CROP%==on + SUM((hhold,crop_activity,field,inten,y),v_Prd_C(hhold,crop_activity,field,inten,y)/(p_Nl_raw* sum(NameNitr,V_Use_Input_C(hhold,crop_activity,NameNitr,y))+0.0001))
+$ifi %ORCHARD%==on + (sum((c_treej,hhold,y),v_prodQuant(hhold,c_treej,y))/(p_Nl_raw* sum((hhold,c_tree,y),V_Nfert_AF(hhold,c_tree,y))+0.0001))
 ;         
 
 E_Tot_WaterUse ..
@@ -302,7 +302,7 @@ $ifi %BIOPH%==ON v_irrigation_opt.fx(hhold,crop_activity_endo,field,inten,m,y) =
 
 $iftheni %BIOPH%==on
 
-option minlp = baron;
+option minlp = BARON;
 *solve BIOPH using MINLP maximizing TOTAL_NSTRESS_SUM;
 solve NITROGEN_OPTIMIZATION using MINLP maximizing TOTAL_NSTRESS_SUM;
 p_nav_begin_fixed(hhold,field,inten,crop_activity,y) =    v_nav_begin.l(hhold,field,inten,crop_activity,y);
@@ -326,8 +326,8 @@ p_b_DR_negative_fixed(hhold,crop_activity,field,inten,m,y) =    b_DR_negative.l(
 parameter pressureCrop(hhold,crop_activity,crop_activity,field,inten)
  diffyield(hhold,crop_activity,crop_activity,field,inten)
 ;
-
-
+*
+*
 pressureCrop(hhold,crop_activity,crop_preceding,field,inten) =p_nstress_fixed(hhold,crop_activity,field,inten,'y01')*p_KS_avg_annual_fixed(hhold,crop_activity,field,inten,'y01') ;
 *display pressureCrop
 *v_Yld_C_max
@@ -346,8 +346,8 @@ $endif
 *******************************
 
 ********************************
-******Necessity to calibrate biophysical?
-**$ifi %CROP%==on $ifi %BIOPH%==on  $include "BIOPHcalibrationModule.gms"
+*****Necessity to calibrate biophysical?
+*$ifi %CROP%==on $ifi %BIOPH%==on  $include "BIOPHcalibrationModule.gms"
 $ifi %CROP%==on $ifi %PMPCalib%==on  $include "PMPcalibrationModule.gms"
 $ifi %CROP%==on $ifi %PMPCalib%==on  display PMPSolnCheck;
 ****************************************************************************************
@@ -410,8 +410,8 @@ $ifi %LIVESTOCK_simplified%==ON V_animals.lo(hhold,type_animal,age,y)= 0;
 $ifi %LIVESTOCK_simplified%==ON V_animals.up(hhold,type_animal,age,y)= 1e9;
 $ifi %LIVESTOCK_simplified%==ON v_FeedAvailable.lo(hhold,feedc,y)=0;
 $ifi %LIVESTOCK_simplified%==ON v_FeedAvailable.up(hhold,feedc,y)=1e9;
-$ifi %LIVESTOCK_simplified%==ON v_FeedConsumed.fx(hhold,feedc,type_animal,y) = 0;
-$ifi %LIVESTOCK_simplified%==ON v_FeedConsumed.fx(hhold,feedc,type_animal,y) = 1e9;
+$ifi %LIVESTOCK_simplified%==ON v_FeedConsumed.lo(hhold,feedc,type_animal,y) = 0;
+$ifi %LIVESTOCK_simplified%==ON v_FeedConsumed.up(hhold,feedc,type_animal,y) = 1e9;
 $ifi %CROP%==ON V_Crop_Number.lo(y, hhold, crop_activity) = 0;
 $ifi %CROP%==ON V_Crop_Number.up(y, hhold, crop_activity) = 1;
 *
@@ -692,12 +692,12 @@ EmbeddedCode Connect:
       - {name: rep_v_nres, range: N_Residue!A1}
 
 endEmbeddedCode
-
-********************************************************************************
-** ANNUAL MODEL SOLUTION AND RESULTS PROCESSING LOOP
-** This loop executes the model for each year and collects all results
-*********
-*******FINITO
+*
+*********************************************************************************
+*** ANNUAL MODEL SOLUTION AND RESULTS PROCESSING LOOP
+*** This loop executes the model for each year and collects all results
+**********
+********FINITO
 $iftheni %BIOPH%==on
 embeddedCode Connect:
 - GAMSReader:
@@ -725,7 +725,7 @@ embeddedCode Connect:
       - {name: rep_v_nres,range: rep_v_nres!A1}
 endEmbeddedCode
 $endIf
-
+*
 $iftheni %DIONYSUS%==on
 *********************************************INITIALIZATION
 $ifi %BIOPH%==on $batinclude "Water_module_equation.gms"  water_init
@@ -782,8 +782,8 @@ $ifi %LIVESTOCK_simplified%==ON V_animals.lo(hhold,type_animal,age,y)= 0;
 $ifi %LIVESTOCK_simplified%==ON V_animals.up(hhold,type_animal,age,y)= 1e9;
 $ifi %LIVESTOCK_simplified%==ON v_FeedAvailable.lo(hhold,feedc,y)=0;
 $ifi %LIVESTOCK_simplified%==ON v_FeedAvailable.up(hhold,feedc,y)=1e9;
-$ifi %LIVESTOCK_simplified%==ON v_FeedConsumed.fx(hhold,feedc,type_animal,y) = 0;
-$ifi %LIVESTOCK_simplified%==ON v_FeedConsumed.fx(hhold,feedc,type_animal,y) = 1e9;
+$ifi %LIVESTOCK_simplified%==ON v_FeedConsumed.lo(hhold,feedc,type_animal,y) = 0;
+$ifi %LIVESTOCK_simplified%==ON v_FeedConsumed.up(hhold,feedc,type_animal,y) = 1e9;
 $ifi %CROP%==ON V_Crop_Number.lo(y, hhold, crop_activity) = 0;
 $ifi %CROP%==ON V_Crop_Number.up(y, hhold, crop_activity) = 1;
 
@@ -1129,8 +1129,8 @@ $ifi %LIVESTOCK_simplified%==ON V_animals.lo(hhold,type_animal,age,y)= 0;
 $ifi %LIVESTOCK_simplified%==ON V_animals.up(hhold,type_animal,age,y)= 1e9;
 $ifi %LIVESTOCK_simplified%==ON v_FeedAvailable.lo(hhold,feedc,y)=0;
 $ifi %LIVESTOCK_simplified%==ON v_FeedAvailable.up(hhold,feedc,y)=1e9;
-$ifi %LIVESTOCK_simplified%==ON v_FeedConsumed.fx(hhold,feedc,type_animal,y) = 0;
-$ifi %LIVESTOCK_simplified%==ON v_FeedConsumed.fx(hhold,feedc,type_animal,y) = 1e9;
+$ifi %LIVESTOCK_simplified%==ON v_FeedConsumed.lo(hhold,feedc,type_animal,y) = 0;
+$ifi %LIVESTOCK_simplified%==ON v_FeedConsumed.up(hhold,feedc,type_animal,y) = 1e9;
 $ifi %CROP%==ON V_Crop_Number.lo(y, hhold, crop_activity) = 0;
 $ifi %CROP%==ON V_Crop_Number.up(y, hhold, crop_activity) = 1;
 
@@ -1464,8 +1464,8 @@ $ifi %LIVESTOCK_simplified%==ON V_animals.lo(hhold,type_animal,age,y)= 0;
 $ifi %LIVESTOCK_simplified%==ON V_animals.up(hhold,type_animal,age,y)= 1e9;
 $ifi %LIVESTOCK_simplified%==ON v_FeedAvailable.lo(hhold,feedc,y)=0;
 $ifi %LIVESTOCK_simplified%==ON v_FeedAvailable.up(hhold,feedc,y)=1e9;
-$ifi %LIVESTOCK_simplified%==ON v_FeedConsumed.fx(hhold,feedc,type_animal,y) = 0;
-$ifi %LIVESTOCK_simplified%==ON v_FeedConsumed.fx(hhold,feedc,type_animal,y) = 1e9;
+$ifi %LIVESTOCK_simplified%==ON v_FeedConsumed.lo(hhold,feedc,type_animal,y) = 0;
+$ifi %LIVESTOCK_simplified%==ON v_FeedConsumed.up(hhold,feedc,type_animal,y) = 1e9;
 $ifi %CROP%==ON V_Crop_Number.lo(y, hhold, crop_activity) = 0;
 $ifi %CROP%==ON V_Crop_Number.up(y, hhold, crop_activity) = 1;
 
@@ -1804,8 +1804,8 @@ $ifi %LIVESTOCK_simplified%==ON V_animals.lo(hhold,type_animal,age,y)= 0;
 $ifi %LIVESTOCK_simplified%==ON V_animals.up(hhold,type_animal,age,y)= 1e9;
 $ifi %LIVESTOCK_simplified%==ON v_FeedAvailable.lo(hhold,feedc,y)=0;
 $ifi %LIVESTOCK_simplified%==ON v_FeedAvailable.up(hhold,feedc,y)=1e9;
-$ifi %LIVESTOCK_simplified%==ON v_FeedConsumed.fx(hhold,feedc,type_animal,y) = 0;
-$ifi %LIVESTOCK_simplified%==ON v_FeedConsumed.fx(hhold,feedc,type_animal,y) = 1e9;
+$ifi %LIVESTOCK_simplified%==ON v_FeedConsumed.lo(hhold,feedc,type_animal,y) = 0;
+$ifi %LIVESTOCK_simplified%==ON v_FeedConsumed.up(hhold,feedc,type_animal,y) = 100000;
 $ifi %CROP%==ON V_Crop_Number.lo(y, hhold, crop_activity) = 0;
 $ifi %CROP%==ON V_Crop_Number.up(y, hhold, crop_activity) = 1;
 
@@ -2134,7 +2134,7 @@ $endIf
 
 *** Unfix variables only after the first year due to calibration
 *** This allows the model to adjust irrigation decisions in subsequent years
-solve dahbsim using MINLP minimizing V_QN;
+solve dahbsim using MINLP maximizing V_QN;
 * Free up irrigation decision variables after year 1 (calibration period)
 $ifi %FIXEDIRRIGATION% == OFF $ifi %BIOPH% == ON v_irrigation_opt.lo(hhold,crop_activity_endo,field,inten,m,y)$(ord(y2) > 1) = 0;
 $ifi %FIXEDIRRIGATION% == OFF $ifi %BIOPH% == ON v_irrigation_opt.up(hhold,crop_activity_endo,field,inten,m,y)$(ord(y2) > 1) = 1e9;
