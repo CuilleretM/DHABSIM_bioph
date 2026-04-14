@@ -111,13 +111,12 @@ v_laborBuyerOutput(y)
 ;
 
 E_Energy(hhold,y) ..
-    V_energy(hhold,y) =E=
-$ifi %ORCHARD%==on         sum((inten,c_tree,m), sum((field,age_tree), V_Area_AF(hhold,field,c_tree,age_tree,inten,y)) * p_energy_AF(hhold,c_tree,inten,m))+ sum((c_tree,inten),            enerReqtask_AF(hhold,c_tree,inten,"fertilizer") *             sum((field,age_tree), V_Area_AF(hhold,field,c_tree,age_tree,inten,y) *              sum(NameNitrAF, v0_cropCoef_AF(hhold,c_tree,field,inten,NameNitrAF)))+ enerReqtask_AF(hhold,c_tree,inten,"phytosanitary") *               V_Phyto_AF(hhold,y) + enerReqtask_AF(hhold,c_tree,inten,"plants") * sum((field,age_tree) $ (ord(age_tree) = 1),                  V_Area_AF(hhold, field, c_tree, age_tree, inten, y))            + enerReqtask_AF(hhold,c_tree,inten,"irrigation"))
-*              V_Irrigation_AF(hhold,c_tree,inten,y))
+    V_energy(hhold,y) =E= 
+$ifi %ORCHARD%==on sum((inten,c_tree,m), sum((field,age_tree), V_Area_AF(hhold,field,c_tree,age_tree,inten,y)) * p_energy_AF(hhold,c_tree,inten,m))+sum((c_tree,inten),enerReqtask_AF(hhold,c_tree,inten,"fertilizer") *             sum((field,age_tree), V_Area_AF(hhold,field,c_tree,age_tree,inten,y) *              sum(NameNitrAF, v0_cropCoef_AF(hhold,c_tree,field,inten,NameNitrAF)))+ enerReqtask_AF(hhold,c_tree,inten,"phytosanitary") *               V_Phyto_AF(hhold,y) + enerReqtask_AF(hhold,c_tree,inten,"plants") * sum((field,age_tree) $ (ord(age_tree) = 1),V_Area_AF(hhold, field, c_tree, age_tree, inten, y))       +sum(field, enerReqtask_AF(hhold,c_tree,inten,"irrigation")*sum(m,p_irrigation_opt_fixed(hhold,c_tree,field,inten,m,'y01'))*sum(age_tree,V_Area_AF(hhold, field, c_tree, age_tree, inten, y)))) 
 $ifi %CROP%==on            + sum((crop_activity_endo,crop_preceding,field,inten,m) $ c_c(crop_activity_endo,crop_preceding),            V_Plant_C(hhold,crop_activity_endo,crop_preceding,field,inten,y) *            p_energy_crop(hhold,crop_activity_endo,inten,m))+ sum((crop_activity_endo,inten),            enerReqtask_crop(hhold,crop_activity_endo,inten,"fertilizer") *             sum((crop_preceding,field) $ c_c(crop_activity_endo,crop_preceding),                 V_Plant_C(hhold,crop_activity_endo,crop_preceding,field,inten,y) *                sum(NameNitr, p_cropcoef(hhold,crop_activity_endo,field,inten,NameNitr)))) + sum((crop_activity_endo,inten),            enerReqtask_crop(hhold,crop_activity_endo,inten,"phytosanitary") *            sum((crop_preceding,field) $ c_c(crop_activity_endo,crop_preceding),                 V_Plant_C(hhold,crop_activity_endo,crop_preceding,field,inten,y) *                sum(NamePhyto, p_cropcoef(hhold,crop_activity_endo,field,inten,NamePhyto)))) + sum((crop_activity_endo,inten),            enerReqtask_crop(hhold,crop_activity_endo,inten,"seeds") *            sum((crop_preceding,field) $ c_c(crop_activity_endo,crop_preceding),                 V_Plant_C(hhold,crop_activity_endo,crop_preceding,field,inten,y) *                sum(NameSeed, p_cropcoef(hhold,crop_activity_endo,field,inten,NameSeed))))
-$ifi %CROP%==on            + sum((crop_activity_endo,field,inten,m),            enerReqtask_crop(hhold,crop_activity_endo,inten,"irrigation")
+$ifi %CROP%==on            + sum((crop_activity_endo,field,inten,m),            enerReqtask_crop(hhold,crop_activity_endo,inten,"irrigation"))
 *            v_irrigation_opt(hhold,crop_activity_endo,field,inten,m,y)
-)
+
 $ifi %LIVESTOCK_simplified%==on         + sum(type_animal, enerReq_Livestock(hhold,type_animal,"energy"))
         
 $ifi %LIVESTOCK_simplified%==on         + sum(feedc,enerReq_Feed(hhold,feedc,"p_feed_energy"))
@@ -163,8 +162,8 @@ E_input_capacity_nitr_C(inout,seller_C,y)..
     p_capacity_seller_C("nitr",seller_C);
 E_input_seller_C(hhold,inout,y)..
     (sum(crop_activity_endo, V_Use_Input_C(hhold,crop_activity_endo,'nitr',y))
-$ifi %BIOPH%==ON $ifi %LIVESTOCK_simplified%==ON    -p_Norg(hhold)
-$ifi %BIOPH%==ON -p_Ncomp(hhold)
+$ifi %BIOPH%==ON $ifi %LIVESTOCK_simplified%==ON    -v_norg_crop(hhold)
+$ifi %BIOPH%==ON -v_ncomp_crop(hhold)
 )
     =E= 
     sum(seller_C, v_inputSeller_C(hhold,"nitr",seller_C,y));
