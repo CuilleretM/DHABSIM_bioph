@@ -26,7 +26,6 @@ p_selPriceLivestock;
 * Fix self-consumption to zero for households without output goods
 v_selfCons.fx(hhold,ak,y)$[not sum(gd, output_good(ak,gd))] = 0;
 V_slaughter.up(hhold,type_animal,age,'y01') = p_initPopulation(hhold,type_animal,age);
-
 v_FeedConsumed.up(hhold,feedc,type_animal,y)=100000;
 *============================================================================*
 * #2 EQUATION DECLARATIONS
@@ -102,10 +101,6 @@ E_additional_input(hhold,y)..
 *---------------------------------------------------------------------------*
 * Production Equations
 *---------------------------------------------------------------------------*
-display a_k
-ak
-akmeat;
-
 E_LIVEPRD(hhold,ak,y)..
     v_prodQuant(hhold,ak,y) =E=  
      sum(type_animal,
@@ -257,7 +252,7 @@ e_Slaughter_Constraint0(hhold,type_animal,age,y)$(ord(age)<2) ..
 
 
 e_PopLimits(hhold,type_animal,y)..
-    sum(age,V_animals(hhold,type_animal,age,y)) =L= 
+    sum(age,V_animals(hhold,type_animal,age,y)) =L= 2*
     sum(age,p_initPopulation(hhold,type_animal,age))
 ;
 

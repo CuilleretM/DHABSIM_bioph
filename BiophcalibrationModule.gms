@@ -16,6 +16,11 @@ delta1 =eps;
 * Solve the model
 solve dahbsim using MINLP maximizing v_npv_tot;
 
+
+
+parameter pressureCrop(hhold,crop_activity,field,inten)
+;
+
 pressureCrop(hhold,crop_activity,field,inten) =sum(m,v_KS_month.L(hhold,crop_activity,field,inten,m,'y01')) *  v_nstress.L(hhold,crop_activity,field,inten,'y01') ;
 
 

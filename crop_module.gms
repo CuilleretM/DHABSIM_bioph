@@ -15,12 +15,9 @@ $ontext
 $offtext
 *~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
 $onglobal
-*CHICKPEA
-*v_Land_C.fx("hh_1","chickpea_loc",field,y)=0;
-*v_Land_C.fx("hh_1","fenugreek_loc",field,y)=0;
+
  v_Use_Land_C.up(hhold,field,y) = v0_Use_Land_C(hhold,field);
 v_Land_C.fx(hhold,crop_activity_endo,field,y)$(not hhold_crop_map(hhold,crop_activity_endo)) = 0;
-    
 
 *~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
 * #1. EQUATION DECLARATIONS
@@ -46,7 +43,8 @@ equations
     
 *-- Input use equations
     E_INPUTUSE_EN         'Input use calculation'
-    E_SEEDUSE             'Seed use calculation'
+*    E_SEEDUSE             'Seed use calculation'
+    E_INPUTUSE_constraint
     
 *-- Residue management equations
     E_residues            'Total residue balance (feed/sales/mulch)'
@@ -63,7 +61,8 @@ equations
     E_SEEDBALANCE         'Seed balance for endogenous crops'
     E_SEEDBALANCE_1       'Seed balance for first period'
     E_SBALANCE_c_product  'Production balance for vegetal products'
-*    E_yld_obj
+    E_CROPAREA_EN2
+    
 ;
 *~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
 * #2. EQUATION DEFINITIONS
@@ -92,7 +91,11 @@ E_Labor_C(hhold,y,m).. V_FamLabor_C(hhold,y,m)+V_HLabor_C(hhold,y,m) =E=
 E_CROPAREA_EN_AGG(hhold,crop_activity_endo,y).. v_Land_C_Agg(hhold,crop_activity_endo,y) =E= sum(field, v_Land_C(hhold,crop_activity_endo,field,y));
 *~~~~~~~~~~~~~~~~ rotation constraints  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
 *-- endogenous crop activities => crop area equals sum over ca-cp areas (Stock current activity?)
-E_CROPAREA_EN(hhold,crop_activity_endo,field,y)..   v_Land_C(hhold,crop_activity_endo,field,y) =e=sum((c_c(crop_activity_endo,crop_preceding),inten)$fieldcrop(hhold,field,crop_activity_endo), V_Plant_C(hhold,crop_activity_endo,crop_preceding,field,inten,y))  ;
+E_CROPAREA_EN(hhold,crop_activity_endo,field,y)..   v_Land_C(hhold,crop_activity_endo,field,y) =e=sum((c_c(crop_activity_endo,crop_preceding),inten), V_Plant_C(hhold,crop_activity_endo,crop_preceding,field,inten,y) ) ;
+
+*correction not in rotation
+E_CROPAREA_EN2(hhold,crop_activity_endo,field,y)..   v_Land_C(hhold,crop_activity_endo,field,y) =e=sum((inten,crop_preceding), V_Plant_C(hhold,crop_activity_endo,crop_preceding,field,inten,y) ) ;
+
 *-- preceding-crop area this year cannot surpass area allocated to this crop last year
 E_ROTATION(hhold,crop_preceding,field,y).. sum((c_c(crop_activity_endo,crop_preceding),inten),V_Plant_C(hhold,crop_activity_endo,crop_preceding,field,inten,y)) =L=
   v_Land_C(hhold,crop_preceding,field,y-1) + v0_Land_C(hhold,crop_preceding,field)$(y.pos eq 1);
@@ -105,10 +108,13 @@ $ifi %BIOPH%==ON + v0_Yld_C_stress(hhold,crop_activity_endo,crop_preceding,field
 ;
 
 
-
-
 E_CACTPRD_EN(hhold,crop_activity_endo,field,inten,y).. v_Prd_C(hhold,crop_activity_endo,field,inten,y) =E=
-  sum(c_c(crop_activity_endo,crop_preceding), V_Plant_C(hhold,crop_activity_endo,crop_preceding,field,inten,y)*v_Yld_C(hhold,crop_activity_endo,crop_preceding,field,inten,y)) ;
+  sum(c_c(crop_activity_endo,crop_preceding), V_Plant_C(hhold,crop_activity_endo,crop_preceding,field,inten,y)*
+$ifi %BIOPH%==OFF v0_Yld_C(hhold,crop_activity_endo,crop_preceding,field,inten)
+$ifi %BIOPH%==ON v0_Yld_C_stress(hhold,crop_activity_endo,crop_preceding,field,inten)
+*20-04 NLP to MIP
+*v_Yld_C(hhold,crop_activity_endo,crop_preceding,field,inten,y))
+);
 
 *-- Crop Production Equations ------------------------------------------------
 *-- main production by activity
@@ -149,6 +155,16 @@ E_INPUTUSE_EN(hhold,crop_activity_endo,i,y)..
     sum((c_c(crop_activity_endo,crop_preceding),field,inten), 
         V_Plant_C(hhold,crop_activity_endo,crop_preceding,field,inten,y)*p_cropcoef(hhold,crop_activity_endo,field,inten,i));
 
+*20-04 constraint on the input_use if valuechain off
+E_INPUTUSE_constraint(hhold,i,y).. 
+   sum(crop_activity_endo, V_Use_Input_C(hhold,crop_activity_endo,i,y)) 
+   =L= 
+$ifi %VALUECHAIN%==OFF sum((crop_activity_endo,field,inten), p_cropcoef(hhold,crop_activity_endo,field,inten,i) * V0_Plant_C(hhold,crop_activity_endo,'allp',field,inten))
+$ifi %VALUECHAIN%==ON 9999999999
+;
+
+
+
 
 *-- Economic Equations ------------------------------------------------------
 
@@ -183,14 +199,18 @@ $ifi %VALUECHAIN%==ON + sum((inpq,seller_C), v_inputSeller_C(hhold,inpq,seller_C
 
 *if valuechain off then the price is just depending on the quantity bought
 $ifi %VALUECHAIN%==OFF + (sum(crop_activity_endo, V_Use_Input_C(hhold,crop_activity_endo,'nitr',y))
-$ifi %VALUECHAIN%==OFF $ifi %BIOPH%==ON $ifi %LIVESTOCK_simplified%==ON    -p_Norg(hhold)
-$ifi %VALUECHAIN%==OFF $ifi %BIOPH%==ON -p_Ncomp(hhold)
+*$ifi %VALUECHAIN%==OFF $ifi %BIOPH%==ON $ifi %LIVESTOCK_simplified%==ON
+-v_norg_crop(hhold)
+*$ifi %VALUECHAIN%==OFF $ifi %BIOPH%==ON
+-v_ncomp_crop(hhold)
 $ifi %VALUECHAIN%==OFF )*sum(NameNitr,p_buyPrice(hhold,NameNitr))
 
 
 
+  
+
 * Irrigation cost
-$ifi %BIOPH%==ON + v_costirr(hhold,y);
+$ifi %BIOPH%==ON + v_costirr_crop(hhold,y);
 ;
 *-- Seed and Product Balance Equations ---------------------------------------
 
@@ -202,13 +222,10 @@ E_SBALANCE_c_product(hhold,c_product_endo,y)..
     v_selfCons(hhold,c_product_endo,y)$sum(gd, output_good(c_product_endo,gd)) + 
     v_markSales(hhold,c_product_endo,y);
 
-
 E_SEEDBALANCE(hhold, crop_activity_endo, y) ..
     sum(NameSeed, V_Use_Input_C(hhold,crop_activity_endo,NameSeed,y)) =E=
-    
 * For first period: only purchased seeds
     (v_seedPurch(hhold, crop_activity_endo, y))$(y.pos eq 1)
-    
 * For subsequent periods: on-farm seeds from previous year + purchased seeds
     + (v_seedonfarm(hhold, crop_activity_endo, y-1) 
        + v_seedPurch(hhold, crop_activity_endo, y))$(y.pos gt 1);
@@ -241,6 +258,7 @@ e_residuesmulch
 e_residuesfeed
 e_residuessell
 e_inputUse_en
+E_INPUTUSE_constraint
 *e_seedUse
 ** (SiwaPMP) added this eqn to model definition ***
 E_CROPAREA_EN_AGG
@@ -254,6 +272,7 @@ e_sBalance_c_product
 *eq_proportion
 *eq_shannon
 *E_yld_obj
+E_CROPAREA_EN2
 /
 ;
 
