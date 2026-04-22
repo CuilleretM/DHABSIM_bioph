@@ -16,14 +16,14 @@ $offtext
 *~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
 $offsymxref
 $onglobal
-option limrow=15;
+*option limrow=15;
 *option optcr = 0.001
 *option optca = 0.000001
-option lp = CPLEX;
+*option lp = CPLEX;
 *option nlp = IPOPT;
 option minlp = baron;
 option rminlp = baron;
-option threads = 30;
+*option threads = 30;
 *option iterlim = 200000;
 *option reslim = 100;
 *~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
@@ -31,7 +31,7 @@ option threads = 30;
 * Set_database.gms has been ran to create the necessary database
 *~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
 *-- general settings
-$batinclude "settings.gms" settings_glo
+*$batinclude "settings.gms" settings_glo
 **$include "set_database.gms" 
 $batinclude "set_database.gms" set_database_ini
 
@@ -67,13 +67,11 @@ $include "household_module.gms"
 **~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
 * #5 Simulation: definition of scenario
 *~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
-$ifi %BIOPH%==on v_KS_month.lo(hhold,crop_activity,field,inten,m,y)  = 0;
-$ifi %BIOPH%==on v_KS_month.up(hhold,crop_activity,field,inten,m,y)  = 1;
-$ifi %BIOPH%==on v_nstress.lo(hhold,crop_activity_endo,field,inten,y)=0;
-$ifi %BIOPH%==on v_nstress.up(hhold,crop_activity_endo,field,inten,y)=1;
-display v0_Prd_C;
+
+
+*display v0_Prd_C;
 *
 $include "simulation_model.gms"
 
-
 *
+**

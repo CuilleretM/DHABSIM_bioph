@@ -44,6 +44,9 @@ Equation
     E_Phyto_Balance_AF(hhold,y)            'Phytosanitary products balance'
     E_Other_Balance_AF(hhold,y)            'Other inputs balance'
     E_PlantsNB_Balance_AF(hhold,c_tree,y)         'Plant number balance'
+    
+    E_ConstraintPhyto_AF(hhold,y)
+    E_ConstraintNfert_AF(hhold,y)
 ;
 
 
@@ -63,7 +66,9 @@ E_Fertilizer_Balance_AF(hhold, c_tree,y)..
     sum((field, inten), 
         sum(age_tree, V_Area_AF(hhold,field,c_tree,age_tree,inten,y)) *  
         sum(NameNitrAF,v0_cropCoef_AF(hhold,c_tree,field,inten,NameNitrAF))
-    );
+    )
+    -v_ncomp_tree(hhold)
+    -v_norg_tree(hhold);
 
 * Phytosanitary products calculation
 E_Phyto_Balance_AF(hhold,y)..
@@ -105,13 +110,15 @@ E_PLANTING_AF(hhold,field,inten,age_tree,y)$(ord(y) > 1 and p_field_AF(hhold,fie
 * Total land allocation constraint
 E_LandAF(hhold,field,inten,y)..
     sum((age_tree,c_tree), V_Area_AF(hhold,field,c_tree,age_tree,inten,y)) =l=
-    sum((c_tree,age_tree),V0_Area_AF(hhold,field,c_tree,age_tree,inten));
+*20-04
+    sum((c_tree,age_tree),V0_Area_AF(hhold,field,c_tree,age_tree,inten))*(1- p_buffer$(fieldcrop_tree(hhold,field)));
 
 * Tree age progression logic
 E_TreeSequencing(hhold,field,c_tree,age_tree,inten,y)..
     V_Area_AF(hhold,field,c_tree,age_tree,inten,y) =e=
 * Initial condition for first year
-        (V0_Area_AF(hhold,field,c_tree,age_tree,inten))$(ord(y) = 1)
+*20-04 buffer
+        (V0_Area_AF(hhold,field,c_tree,age_tree,inten)$(ord(y) = 1)*(1-p_buffer$(fieldcrop_tree(hhold,field))))
 * Age progression for subsequent years
         + V_Area_AF(hhold,field,c_tree,age_tree-1,inten,y-1)$(ord(y) > 1 and ord(age_tree) > 1 and ord(age_tree) <= life_tree(c_tree))
 * New plantings
@@ -124,15 +131,15 @@ E_CROPPRD_AF(hhold,c_tree,y)..
     v_Prd_AF(hhold,c_tree,y) =e=
         sum((field, inten),
 * Young trees production
-            sum(NameYoung,v0_Yld_C_tree(field, c_tree, NameYoung)) * 
+            sum(NameYoung,v0_Yld_C_tree(field, c_tree, NameYoung)) * pressuretree(hhold,c_tree,field,inten)*
             sum(age_tree$(ord(age_tree) < harvestingAge_tree(c_tree)), 
                 V_Area_AF(hhold, field, c_tree,age_tree, inten, y)) +
 * Adult trees production
-            sum(NameAdult,v0_Yld_C_tree(field, c_tree, NameAdult)) * 
+            sum(NameAdult,v0_Yld_C_tree(field, c_tree, NameAdult)) * pressuretree(hhold,c_tree,field,inten)*
             sum(age_tree$(ord(age_tree) >= harvestingAge_tree(c_tree) and ord(age_tree) < oldAge_tree(c_tree)), 
                 V_Area_AF(hhold, field, c_tree,age_tree, inten, y)) +
 * Old trees production
-            sum(NameOld,v0_Yld_C_tree(field, c_tree, NameOld)) * 
+            sum(NameOld,v0_Yld_C_tree(field, c_tree, NameOld)) * pressuretree(hhold,c_tree,field,inten) * 
             sum(age_tree$(ord(age_tree) >= oldAge_tree(c_tree)), 
                 V_Area_AF(hhold, field, c_tree,age_tree, inten, y))
         );
@@ -166,11 +173,32 @@ E_VarCost_AF(hhold,y)..
     ))
 
 * Input costs (conditional on value chain setting)
-$ifi %VALUECHAIN%==OFF + sum(c_tree, (V_Nfert_AF(hhold,c_tree,y)*sum(NameNitrPrice,p_buyPrice_tree(NameNitrPrice,c_tree))))
-$ifi %VALUECHAIN%==OFF +sum(c_tree, (V_PlantsNB_AF(hhold,c_tree,y)*sum(NamePlantsPrice,p_buyPrice_tree(NamePlantsPrice,c_tree))))
+$ifi %VALUECHAIN%==OFF + sum(c_tree, (V_Nfert_AF(hhold,c_tree,y)- v_norg_tree(hhold) -v_ncomp_tree(hhold))*sum(NameNitrPrice,p_buyPrice_tree(NameNitrPrice,c_tree)))
+
+
 $ifi %VALUECHAIN%==on  + sum(seller_AF, sum(NameNitr,v_inputSeller_AF(hhold,NameNitr,seller_AF,y)*p_price_seller(NameNitr,seller_AF)))
+
+
+$ifi %VALUECHAIN%==OFF +sum(c_tree, (V_PlantsNB_AF(hhold,c_tree,y)*sum(NamePlantsPrice,p_buyPrice_tree(NamePlantsPrice,c_tree))))
 $ifi %VALUECHAIN%==on + sum(seller_AF, sum(NamePlantsNb,v_inputSeller_AF(hhold,NamePlantsNb,seller_AF,y)*p_price_seller(NamePlantsNb,seller_AF)))
-    + V_other_AF(hhold,y) + V_Phyto_AF(hhold,y);
+    + V_other_AF(hhold,y) + V_Phyto_AF(hhold,y)
+$ifi %BIOPH%==on     +v_costirr_tree(hhold,y)
+    ;
+
+
+
+*Constraint no value chain
+E_ConstraintPhyto_AF(hhold,y)..
+    V_Phyto_AF(hhold,y) =L=0
+$ifi %VALUECHAIN%==OFF   + sum((field, c_tree, inten),        sum(age_tree,(V0_Area_AF(hhold,field,c_tree,age_tree,inten)$(ord(y) = 1)*(1-p_buffer$(fieldcrop_tree(hhold,field))))) *        v0costPhyto_AF(hhold,c_tree,field,inten))
+$ifi %VALUECHAIN%==ON   + 9999999999
+    ;
+E_ConstraintNfert_AF(hhold,y)..
+sum(c_tree,V_Nfert_AF(hhold, c_tree,y))=L=0
+$ifi %VALUECHAIN%==OFF   +sum((field, c_tree, inten), sum(age_tree,(V0_Area_AF(hhold,field,c_tree,age_tree,inten)*(1-p_buffer$(fieldcrop_tree(hhold,field))))) *          sum(NameNitrAF,v0_cropCoef_AF(hhold,c_tree,field,inten,NameNitrAF)))
+$ifi %VALUECHAIN%==ON   + 9999999999
+    ;
+
 
 * Annual gross margin calculation
 E_AnnualGM_AF(hhold,y)..
