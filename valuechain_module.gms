@@ -129,7 +129,7 @@ $ifi %LIVESTOCK_simplified%==on         + sum(feedc,enerReq_Feed(hhold,feedc,"p_
 *~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
 
 *-- GENERAL VALUE CHAIN EQUATIONS -----------------------------------------
-* Buyer capacity constraint
+* Buyer capacity constraint, maximum capacity  they can buy
 E_output_capacity(inout,buyer,y)..
     sum(hhold, v_outputBuyer(hhold,inout,buyer,y)) =L= 
     p_capacity_buyer(inout,buyer);

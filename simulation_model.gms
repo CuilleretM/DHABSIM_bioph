@@ -22,13 +22,19 @@ Variable
 ;
 equations
 *   E_max_irr             'cash constraint'
-   E_cost_irr
+   E_cost_irr_crop
+   E_cost_irr_tree
    E_Tot_WaterUse
    E_QN
 ;
 
-E_cost_irr(hhold,y).. v_costirr(hhold,y)=e=0
-$ifi %CROP%==on  +(SUM((crop_activity,field,inten,m),p_irrigation_opt_fixed(hhold,crop_activity,field,inten,m,y)*sum(crop_preceding,V_Plant_C(hhold,crop_activity,crop_preceding,field,inten,y))*p_cost_irrigation(hhold)))/p_pricescalar;
+E_cost_irr_crop(hhold,y).. v_costirr_crop(hhold,y)=e=0
+$ifi %CROP%==on  +(SUM((crop_activity,field,inten,m),p_irrigation_opt_fixed(hhold,crop_activity,field,inten,m,y)*sum(crop_preceding,V_Plant_C(hhold,crop_activity,crop_preceding,field,inten,y))*p_cost_irrigation(hhold)))/p_pricescalar
+;
+
+E_cost_irr_tree(hhold,y).. v_costirr_tree(hhold,y)=e=0
+$ifi %ORCHARD%==on +(SUM((c_tree,field,inten,m),p_irrigation_opt_fixed(hhold,c_tree,field,inten,m,y)*sum(age_tree,V_Area_AF(hhold, field, c_tree, age_tree, inten, y)) *p_cost_irrigation(hhold)))/p_pricescalar
+;
 
 
 E_QN ..
@@ -38,11 +44,8 @@ $ifi %ORCHARD%==on + (sum((c_treej,hhold,y),v_prodQuant(hhold,c_treej,y))/(p_Nl_
 ;         
 
 E_Tot_WaterUse ..
-     V_Tot_WaterUse          =E= 
- SUM((hhold,crop_activity,field,inten,y),
-v_Prd_C(hhold,crop_activity,field,inten,y)/(
-sum(m,p_irrigation_opt_fixed(hhold,crop_activity,field,inten,m,y)* sum(crop_preceding,V_Plant_C(hhold,crop_activity,crop_preceding,field,inten,y))
-)+0.0001));
+     V_Tot_WaterUse          =E=0 
+$ifi %CROP%==on + SUM((hhold,crop_activity,field,inten,y),v_Prd_C(hhold,crop_activity,field,inten,y)/(sum(m,p_irrigation_opt_fixed(hhold,crop_activity,field,inten,m,y)* sum(crop_preceding,V_Plant_C(hhold,crop_activity,crop_preceding,field,inten,y)))+0.0001));
 
 
 
@@ -50,30 +53,6 @@ $endIf
 *~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
 * #1 Model parameters
 *~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
-*Define before risk module because use in both module
-parameter
-*-- Discount factor
-  dr                    'discount rate'
-  rho(year)             'discount factor'
-  p_phi                 'risk aversion coefficient';        
-$iftheni %LINUX%==off
-$call "gdxxrw.exe DATA\RiskModule_%region%.xlsx o=DATA\RiskModule_%region%.gdx se=2 index=index_coef!A3"
-$gdxin "DATA\RiskModule_%region%.gdx"
-$load dr p_phi
-$gdxin
-$endif
-
-$iftheni %LINUX%==on
-$onEmbeddedCode Connect:
-- ExcelReader:
-    file: DATA%system.DirSep%RiskModule_%region%.xlsx
-    symbols:
-       - {name: dr, range: dr!B1, columnDimension: 0, rowDimension: 0, type: par}
-       - {name: p_phi, range: p_phi!B1, columnDimension: 0, rowDimension: 0, type: par}
-- GAMSWriter:
-    symbols: all  # GAMS 48
-$offEmbeddedCode
-$endif
 rho(y) = 1/( (1+dr)**(y.pos-1) );
 
 *~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
@@ -87,9 +66,10 @@ variable
   V_Diversity
 ;
 * Binary variable
-    Binary Variables
-* positive variables
-       V_Crop_Number(y, hhold, crop_activity);
+*    Binary Variables
+ positive variables
+       V_Crop_Number(y, hhold, crop_activity)
+       V_tree_number(y, hhold, c_tree);
 *~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
 * #3 Model equations
 *~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
@@ -109,6 +89,7 @@ equation
 
 equation
     E_Crop_Number_Def
+    E_Tree_Number_Def
     E_Diversity
     E_AreaConst
 ;
@@ -119,9 +100,20 @@ $iftheni %CROP%==on
 E_Crop_Number_Def(hhold, crop_activity_endo, y)..
         sum(field,v_Land_C(hhold, crop_activity_endo,field, y)) =l= V_Crop_Number(y, hhold, crop_activity_endo) * 100;
 *** The diversity measure itself
-E_Diversity..
-       V_Diversity =e= sum((y, hhold, crop_activity_endo), V_Crop_Number(y, hhold, crop_activity_endo));
 $endIf
+
+$iftheni %ORCHARD%==on
+E_Tree_Number_Def(hhold, c_tree, y)..
+sum((field,age_tree,inten),V_Area_AF(hhold,field,c_tree,age_tree,inten,y)) =l= V_tree_number(y, hhold, c_tree) * 100;
+;
+$endIf
+
+E_Diversity..
+       V_Diversity =e= 0
+$ifi %CROP%==on + sum((y, hhold, crop_activity_endo), V_Crop_Number(y, hhold, crop_activity_endo))
+$ifi %ORCHARD%==on + sum((y, hhold, c_tree), V_tree_number(y, hhold, c_tree))
+;
+
 
 
 
@@ -130,7 +122,8 @@ $endIf
 *~~~~~~~~~~~~~~~~ utility definition    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
 *Utility based on the farm income define in farm module
 E_UTIL(hhold,y)..  v_util(hhold,y) =E=  v_fullIncome(hhold,y)
-$ifi %CONS%==on +sum(gd, p_goodPrice(hhold,gd)*(sum(output_good(c_product,gd), v_selfCons(hhold,c_product,y))- v_markPurch(hhold,gd,y))) ;
+*20-04 Delete due to the fact that is considered two times
+*$ifi %CONS%==on +sum(gd, p_goodPrice(hhold,gd)*(sum(output_good(c_product,gd), v_selfCons(hhold,c_product,y))- v_markPurch(hhold,gd,y))) ;
 ;
 
 *~~~~~~~~~~~~~~~~ net present value     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
@@ -179,8 +172,9 @@ model dahbsim 'dynamic agricultural household model'   /
                  E_UTIL
                  E_NPV
                  E_NPV_TOT
+$ifi  %ORCHARD%==on             E_Tree_Number_Def
 $ifi  %CROP%==on                E_Crop_Number_Def
-$ifi  %CROP%==on                 E_Diversity
+                 E_Diversity
 $ifi %VALUECHAIN%==ON     E_Total_ValueChain_Labor
 $ifi %BIOPH%==ON     E_Tot_WaterUse
 $ifi %BIOPH%==ON     E_QN
@@ -188,9 +182,9 @@ $ifi %VALUECHAIN%==ON     E_ghg_total
 ** (SiwaPMP) include calibration constraints in model definition
 $ifi %CROP%==on $ifi %PMPCalib%==on  E_AreaConst_UpB
 $ifi %CROP%==on $ifi %PMPCalib%==on  E_AreaConst_LoB
-$ifi %BIOPH%==on E_cost_irr
+$ifi %BIOPH%==on    E_cost_irr_crop
+$ifi %BIOPH%==on    E_cost_irr_tree
 /
-
 ;
 
 
@@ -274,6 +268,7 @@ parameters
            rep_Livestock_Pop
            rep_bluewater
            rep_greenwater
+           rep_greywater
 *******WEFENI
            repEnergy(*,*,*,*) ENERGY
            repGHG(*,*,*,*) GHG
@@ -297,49 +292,55 @@ option repUtil :2:2:1;
 *************************************************************************************
 $ifi %BIOPH%==on p_test(hhold,crop_activity_endo,field,inten,m,y)=  p_swd0(hhold,crop_activity_endo,field,inten)      - p_rain(y,m)      -irrigation_month(hhold,crop_activity_endo,inten,m)    - CR(hhold,crop_activity_endo,field,inten)    + ET0_month(hhold,crop_activity_endo,field,inten,m,y)     * p_kc(crop_activity_endo,field,inten);
 $ifi %BIOPH%==on display p_test;
-$ifi %BIOPH%==ON v_irrigation_opt.fx(hhold,crop_activity_endo,field,inten,m,y) =irrigation_month(hhold,crop_activity_endo,inten,m);
+*$ifi %BIOPH%==ON v_irrigation_opt.fx(hhold,crop_and_tree,field,inten,m,y) =irrigation_month(hhold,crop_and_tree,inten,m);
 
 
 $iftheni %BIOPH%==on
 
-option minlp = BARON;
+*option minlp = BARON;
 *solve BIOPH using MINLP maximizing TOTAL_NSTRESS_SUM;
-solve NITROGEN_OPTIMIZATION using MINLP maximizing TOTAL_NSTRESS_SUM;
-p_nav_begin_fixed(hhold,field,inten,crop_activity,y) =    v_nav_begin.l(hhold,field,inten,crop_activity,y);
-p_nmin_fixed(hhold,field,y) = v_nmin.l(hhold,field,y);
-p_Nres_fixed(hhold,field,y) = v_Nres.l(hhold,field,y);
-p_nl_fixed(hhold,crop_activity,field,inten,y) = v_nl.l(hhold,crop_activity,field,inten,y);
-p_nfin_fixed(hhold,field,inten,crop_activity,y) = v_nfin.l(hhold,field,inten,crop_activity,y);
-p_hini_fixed(hhold,field,y) = v_hini.l(hhold,field,y);
-p_hfin_fixed(hhold,field,y) = v_hfin.l(hhold,field,y);
-p_nav_fixed(hhold,field,inten,crop_activity,y) = v_nav.l(hhold,field,inten,crop_activity,y);
-p_nab_fixed(hhold,crop_activity,field,inten,y) = v_nab.l(hhold,crop_activity,field,inten,y);
-p_nstress_fixed(hhold,crop_activity,field,inten,y) = v_nstress.l(hhold,crop_activity,field,inten,y);
-solve IRRIGATION_OPTIMIZATION using MINLP maximizing TOTAL_KS_SUM;
-p_irrigation_opt_fixed(hhold,crop_activity,field,inten,m,y) =     v_irrigation_opt.l(hhold,crop_activity,field,inten,m,y);
-p_KS_month_fixed(hhold,crop_activity,field,inten,m,y) =     v_KS_month.l(hhold,crop_activity,field,inten,m,y);
-p_DR_start_fixed(hhold,crop_activity,field,inten,m,y) =     v_DR_start.l(hhold,crop_activity,field,inten,m,y);
-p_DR_end_fixed(hhold,crop_activity,field,inten,m,y) =     v_DR_end.l(hhold,crop_activity,field,inten,m,y);
-p_KS_avg_annual_fixed(hhold,crop_activity,field,inten,y) =     v_KS_avg_annual.l(hhold,crop_activity,field,inten,y);
-p_b_KS_fixed(hhold,crop_activity,field,inten,m,y) =     b_KS.l(hhold,crop_activity,field,inten,m,y);
-p_b_DR_negative_fixed(hhold,crop_activity,field,inten,m,y) =    b_DR_negative.l(hhold,crop_activity,field,inten,m,y);
+
+p_nav_begin_fixed(hhold,field,inten,crop_and_tree,y) =    p_nav_begin(hhold,field,inten,crop_and_tree,y);
+p_nmin_fixed(hhold,field,y) = p_nmin(hhold,field,y);
+p_Nres_fixed(hhold,field,y) = p_Nres_tot(hhold,field,y);
+p_nl_fixed(hhold,crop_and_tree,field,inten,y) = p_nl(hhold,crop_and_tree,field,inten,y) ;
+p_nfin_fixed(hhold,field,inten,crop_and_tree,y) = p_nfin(hhold,field,inten,crop_and_tree,y);
+p_hini_fixed(hhold,field,y) = p_hini(hhold,field);
+p_hfin_fixed(hhold,field,y) = p_hfin(hhold,field,y);
+p_nav_fixed(hhold,field,inten,crop_and_tree,y) = p_nav(hhold,field,inten,crop_and_tree,y);
+p_nab_fixed(hhold,crop_and_tree,field,inten,y) = p_nab(hhold, crop_and_tree, field, inten, y);
+p_nstress_fixed(hhold,crop_and_tree,field,inten,y) = p_nstress(hhold,crop_and_tree,field,inten,y);
+
+p_irrigation_opt_fixed(hhold,crop_and_tree,field,inten,m,y) =     irrigation_month(hhold,crop_and_tree,inten,m);
+p_KS_month_fixed(hhold,crop_and_tree,field,inten,m,y) =     p_KS_month(hhold,crop_and_tree,field,inten,m,y);
+p_DR_start_fixed(hhold,crop_and_tree,field,inten,m,y) =     p_DR_start(hhold,crop_and_tree,field,inten,m,y);
+p_DR_end_fixed(hhold,crop_and_tree,field,inten,m,y) =     p_DR_end(hhold,crop_and_tree,field,inten,m,y);
+p_KS_avg_annual_fixed(hhold,crop_and_tree,field,inten,y) =     p_KS_year(hhold,crop_and_tree,field,inten,y);
+
 parameter pressureCrop(hhold,crop_activity,crop_activity,field,inten)
  diffyield(hhold,crop_activity,crop_activity,field,inten)
 ;
-*
-*
+**
+**
 pressureCrop(hhold,crop_activity,crop_preceding,field,inten) =p_nstress_fixed(hhold,crop_activity,field,inten,'y01')*p_KS_avg_annual_fixed(hhold,crop_activity,field,inten,'y01') ;
-*display pressureCrop
-*v_Yld_C_max
-*v0_Yld_C;
+
+$ifi %ORCHARD%==ON pressuretree(hhold,c_tree,field,inten)=p_nstress_fixed(hhold,c_tree,field,inten,'y01')*p_KS_avg_annual_fixed(hhold,c_tree,field,inten,'y01') ;
+*pressuretree(hhold,c_tree,field,inten)=1;
+$ifi %ORCHARD%==ON display pressuretree;
+**v_Yld_C_max
+**v0_Yld_C;
+$iftheni %BIOPHcalib%==on
 calibBioph(hhold,crop_activity,crop_preceding,field,inten)=pressureCrop(hhold,crop_activity,crop_preceding,field,inten) * v_Yld_C_max(hhold,crop_activity,crop_preceding,field,inten)-
 v0_Yld_C(hhold,crop_activity,crop_preceding,field,inten);
-*display calibBioph;
+**display calibBioph;
 diffyield(hhold,crop_activity,crop_preceding,field,inten)=(v_Yld_C_max(hhold,crop_activity,crop_preceding,field,inten)*pressureCrop(hhold,crop_activity,crop_preceding,field,inten)-calibBioph(hhold,crop_activity,crop_preceding,field,inten))-v0_Yld_C(hhold,crop_activity,crop_preceding,field,inten);
-*display diffyield;
-
+**display diffyield;
+*
+$endif
+$iftheni %CROP%==on
 v0_Yld_C_stress(hhold,crop_activity,crop_preceding,field,inten)=max(0,((v_Yld_C_max(hhold,crop_activity,crop_preceding,field,inten)*p_nstress_fixed(hhold,crop_activity,field,inten,'y01')*p_KS_avg_annual_fixed(hhold,crop_activity,field,inten,'y01'))-   calibBioph(hhold,crop_activity,crop_preceding,field,inten)));
-
+*
+$endIf
 $endif
 
 
@@ -350,62 +351,67 @@ $endif
 *$ifi %CROP%==on $ifi %BIOPH%==on  $include "BIOPHcalibrationModule.gms"
 $ifi %CROP%==on $ifi %PMPCalib%==on  $include "PMPcalibrationModule.gms"
 $ifi %CROP%==on $ifi %PMPCalib%==on  display PMPSolnCheck;
-****************************************************************************************
+*****************************************************************************************
 $ifi %CROP%==on $ifi %PMPCalib%==on execute_unload "PMPresult/PMPSolnCheck.gdx" PMPSolnCheck;
+
 $iftheni %PMPCalib%==on
-EmbeddedCode Connect:
-- GAMSReader:
-    symbols: [ {name: PMPSolnCheck}]
-- ExcelWriter:
-    file: Dahbsim_PMP.xlsx
-    valueSubstitutions: {EPS: 0, INF: 999999}
-    symbols:
-      - {name: PMPSolnCheck, range: PMPSolnCheck!A1}
-endEmbeddedCode
+execute 'gdxxrw PMPresult/PMPSolnCheck.gdx output=PMPresult/PMPSolnCheck.xlsx par=PMPSolnCheck rng=A1';
+*EmbeddedCode Connect:
+*- GAMSReader:
+*    symbols: [ {name: PMPSolnCheck}]
+*- ExcelWriter:
+*    file: Dahbsim_PMP.xlsx
+*    valueSubstitutions: {EPS: 0, INF: 999999}
+*    symbols:
+*      - {name: PMPSolnCheck, range: PMPSolnCheck!A1}
+*endEmbeddedCode
 $endIf
 *
+
+
+
+
 *********************************************************************************
 ** ANNUAL MODEL SOLUTION AND RESULTS PROCESSING LOOP
 ** This loop executes the model for each year and collects all results
 *********************************************************************************
 loop(y2,
 $iftheni %BIOPH%==on
-solve NITROGEN_OPTIMIZATION using MINLP maximizing TOTAL_NSTRESS_SUM;
-p_nav_begin_fixed(hhold,field,inten,crop_activity,y) =    v_nav_begin.l(hhold,field,inten,crop_activity,y);
-p_nmin_fixed(hhold,field,y) = v_nmin.l(hhold,field,y);
-p_Nres_fixed(hhold,field,y) = v_Nres.l(hhold,field,y);
-p_nl_fixed(hhold,crop_activity,field,inten,y) = v_nl.l(hhold,crop_activity,field,inten,y);
-p_nfin_fixed(hhold,field,inten,crop_activity,y) = v_nfin.l(hhold,field,inten,crop_activity,y);
-p_hini_fixed(hhold,field,y) = v_hini.l(hhold,field,y);
-p_hfin_fixed(hhold,field,y) = v_hfin.l(hhold,field,y);
-p_nav_fixed(hhold,field,inten,crop_activity,y) = v_nav.l(hhold,field,inten,crop_activity,y);
-p_nab_fixed(hhold,crop_activity,field,inten,y) = v_nab.l(hhold,crop_activity,field,inten,y);
-p_nstress_fixed(hhold,crop_activity,field,inten,y) = v_nstress.l(hhold,crop_activity,field,inten,y);
-solve IRRIGATION_OPTIMIZATION using MINLP maximizing TOTAL_KS_SUM;
-p_irrigation_opt_fixed(hhold,crop_activity,field,inten,m,y) =     v_irrigation_opt.l(hhold,crop_activity,field,inten,m,y);
-p_KS_month_fixed(hhold,crop_activity,field,inten,m,y) =     v_KS_month.l(hhold,crop_activity,field,inten,m,y);
-p_DR_start_fixed(hhold,crop_activity,field,inten,m,y) =     v_DR_start.l(hhold,crop_activity,field,inten,m,y);
-p_DR_end_fixed(hhold,crop_activity,field,inten,m,y) =     v_DR_end.l(hhold,crop_activity,field,inten,m,y);
-p_KS_avg_annual_fixed(hhold,crop_activity,field,inten,y) =     v_KS_avg_annual.l(hhold,crop_activity,field,inten,y);
-p_b_KS_fixed(hhold,crop_activity,field,inten,m,y) =     b_KS.l(hhold,crop_activity,field,inten,m,y);
-p_b_DR_negative_fixed(hhold,crop_activity,field,inten,m,y) =    b_DR_negative.l(hhold,crop_activity,field,inten,m,y);
+*solve NITROGEN_OPTIMIZATION using MINLP maximizing TOTAL_NSTRESS_SUM;
+$ifi %BIOPH%==on $batinclude "Nitrate_module_equation.gms"  first_sim
+p_nav_begin_fixed(hhold,field,inten,crop_and_tree,y) =    p_nav_begin(hhold,field,inten,crop_and_tree,y);
+p_nmin_fixed(hhold,field,y) = p_nmin(hhold,field,y);
+p_Nres_fixed(hhold,field,y) = p_Nres_tot(hhold,field,y);
+p_nl_fixed(hhold,crop_and_tree,field,inten,y) = p_nl(hhold,crop_and_tree,field,inten,y) ;
+p_nfin_fixed(hhold,field,inten,crop_and_tree,y) = p_nfin(hhold,field,inten,crop_and_tree,y);
+p_hini_fixed(hhold,field,y) = p_hini(hhold,field);
+p_hfin_fixed(hhold,field,y) = p_hfin(hhold,field,y);
+p_nav_fixed(hhold,field,inten,crop_and_tree,y) = p_nav(hhold,field,inten,crop_and_tree,y);
+p_nab_fixed(hhold,crop_and_tree,field,inten,y) = p_nab(hhold, crop_and_tree, field, inten, y);
+p_nstress_fixed(hhold,crop_and_tree,field,inten,y) = p_nstress(hhold,crop_and_tree,field,inten,y);
 
+$ifi %BIOPH%==on $batinclude "Water_module_equation.gms"  first_sim
+p_irrigation_opt_fixed(hhold,crop_and_tree,field,inten,m,y) =     irrigation_month(hhold,crop_and_tree,inten,m);
+p_KS_month_fixed(hhold,crop_and_tree,field,inten,m,y) =     p_KS_month(hhold,crop_and_tree,field,inten,m,y);
+p_DR_start_fixed(hhold,crop_and_tree,field,inten,m,y) =     p_DR_start(hhold,crop_and_tree,field,inten,m,y);
+p_DR_end_fixed(hhold,crop_and_tree,field,inten,m,y) =     p_DR_end(hhold,crop_and_tree,field,inten,m,y);
+p_KS_avg_annual_fixed(hhold,crop_and_tree,field,inten,y) =     p_KS_year(hhold,crop_and_tree,field,inten,y);
+$iftheni %CROP%==on
 v0_Yld_C_stress(hhold,crop_activity,crop_preceding,field,inten)=max(0,((v_Yld_C_max(hhold,crop_activity,crop_preceding,field,inten)*p_nstress_fixed(hhold,crop_activity,field,inten,'y01')*p_KS_avg_annual_fixed(hhold,crop_activity,field,inten,'y01'))-   calibBioph(hhold,crop_activity,crop_preceding,field,inten)));
-
+$endIf
 
 display p_nfin_fixed
 p_nstress_fixed
 p_DR_start_fixed
-p_KS_avg_annual_fixed;
+p_KS_avg_annual_fixed
+*v0_Yld_C_stress;
 $endIf
 
 *** Unfix variables only after the first year due to calibration
 *** This allows the model to adjust irrigation decisions in subsequent years
 solve dahbsim using MINLP maximizing v_npv_tot;
 * Free up irrigation decision variables after year 1 (calibration period)
-$ifi %FIXEDIRRIGATION% == OFF $ifi %BIOPH% == ON v_irrigation_opt.lo(hhold,crop_activity_endo,field,inten,m,y)$(ord(y2) > 1) = 0;
-$ifi %FIXEDIRRIGATION% == OFF $ifi %BIOPH% == ON v_irrigation_opt.up(hhold,crop_activity_endo,field,inten,m,y)$(ord(y2) > 1) = 1e9;
-*
+
 $ifi %LIVESTOCK_simplified%==ON V_animals.lo(hhold,type_animal,age,y)= 0;
 $ifi %LIVESTOCK_simplified%==ON V_animals.up(hhold,type_animal,age,y)= 1e9;
 $ifi %LIVESTOCK_simplified%==ON v_FeedAvailable.lo(hhold,feedc,y)=0;
@@ -414,7 +420,6 @@ $ifi %LIVESTOCK_simplified%==ON v_FeedConsumed.lo(hhold,feedc,type_animal,y) = 0
 $ifi %LIVESTOCK_simplified%==ON v_FeedConsumed.up(hhold,feedc,type_animal,y) = 1e9;
 $ifi %CROP%==ON V_Crop_Number.lo(y, hhold, crop_activity) = 0;
 $ifi %CROP%==ON V_Crop_Number.up(y, hhold, crop_activity) = 1;
-*
 
 
 *****************************************************************************
@@ -437,8 +442,33 @@ repMpur(hhold,good,'MketPurch',y2)      = v_markPurch.l(hhold,good,'y01');
 repProd(hhold,c_product_endo,'Production',y2) = v_prodQuant.l(hhold,c_product_endo,'y01');
 repUtil(hhold,'Utility',y2)              = v_npv.l(hhold);
 $ifi %VALUECHAIN%==ON repghg_saved('GM',y2) = sum(hhold, v_GHG.l(hhold,'y01'));
-$ifi %BIOPH%==on $ifi %CROP%==on rep_greenwater(y2) = sum((hhold,m,crop_activity,field,inten),min(       (ET0_month(hhold,crop_activity,field,inten,m,'y01') * p_kc(crop_activity,field,inten)), p_rain('y01',m) ));
-$ifi %BIOPH%==on $ifi %CROP%==on rep_bluewater(y2) = sum((hhold,m,crop_activity,field,inten),min(v_irrigation_opt.l(hhold,crop_activity,field,inten,m,'y01'),max(0, (ET0_month(hhold,crop_activity,field,inten,m,'y01') * p_kc(crop_activity,field,inten)) - p_rain('y01',m)  ) ));
+*20-04
+*GREENWATER
+$ifi %BIOPH%==on rep_greenwater(y2)=0
+*GREENWATER CROP
+$ifi %CROP%==on + sum((hhold,m,crop_activity,field,inten),min(       (ET0_month(hhold,crop_activity,field,inten,m,'y01') * p_kc(crop_activity,field,inten)), p_rain('y01',m) )*sum(crop_preceding,V_Plant_C.L(hhold,crop_activity,crop_preceding,field,inten,'y01')))
+*GREENWATER ORCHARD
+$ifi %ORCHARD%==on +  sum((hhold,m,c_tree,field,inten),min((ET0_month(hhold,c_tree,field,inten,m,'y01') * p_kc(c_tree,field,inten)), p_rain('y01',m))*sum(age_tree,V_Area_AF.L(hhold,field,c_tree,age_tree,inten,'y01')))
+;
+
+*BLUEWATER
+$ifi %BIOPH%==on rep_bluewater(y2) = 0
+*BLUEWATER CROP
+$ifi %CROP%==on + sum((hhold,m,crop_activity,field,inten),min(irrigation_month(hhold,crop_activity,inten,m),max(0, (ET0_month(hhold,crop_activity,field,inten,m,'y01') * p_kc(crop_activity,field,inten)) - p_rain('y01',m)))*sum(crop_preceding,V_Plant_C.L(hhold,crop_activity,crop_preceding,field,inten,'y01')))
+*BLUEWATER ORCHARD
+$ifi %ORCHARD%==on + sum((hhold,m,c_tree,field,inten),min(irrigation_month(hhold,c_tree,inten,m),max(0, (ET0_month(hhold,c_tree,field,inten,m,'y01') * p_kc(c_tree,field,inten)) - p_rain('y01',m)))*sum(age_tree,V_Area_AF.L(hhold,field,c_tree,age_tree,inten,'y01')))
+;
+
+*GREYWATER
+$ifi %BIOPH%==on rep_greywater(y2) = (0
+*GREYWATER CROP
+$ifi %BIOPH%==on $ifi %CROP%==on +p_Nl_raw * sum(hhold,             sum(crop_activity_endo, V_Use_Input_C.l(hhold,crop_activity_endo,'nitr','y01')) + repfert(hhold,'Nitr',y2)= p_Nl_raw * sum(crop_activity_endo, V_Use_Input_C.l(hhold,crop_activity_endo,'nitr','y01')))
+*GREYWATER ORCHARD
+$ifi %BIOPH%==on $ifi %ORCHARD%==on + p_Nl_raw * sum((hhold,c_tree), V_Nfert_AF.l(hhold,c_tree,'y01'))
+$ifi %BIOPH%==on )/(MaxConcNitr-InitConcNitr);
+
+
+
 
 ****************************************************************************
 * SECTION 2: WEFENI INDICATORS
@@ -457,13 +487,13 @@ repProductivity(hhold,'GM',"productivity",y2) = sum(c_product_endo, v_prodQuant.
 ****************************************************************************
 repGM_saved('GM',y2) = sum(hhold, rho('y01') * v_util.l(hhold,'y01'));
     
-$ifi %BIOPH%==on repWaterUse_saved('GM',y2) = SUM((hhold,crop_activity,field,inten,m,y), v_irrigation_opt.l(hhold,crop_activity,field,inten,m,'y01'));
+$ifi %BIOPH%==on repWaterUse_saved('GM',y2) = SUM((hhold,crop_and_tree,field,inten,m), irrigation_month(hhold,crop_and_tree,inten,m));
     
-$ifi %VALUECHAIN%==ON     repDiversity_saved('GM',y2) = V_diversity.l;
+$ifi %VALUECHAIN%==ON     repDiversity_saved('GM',y2) = 0+ V_diversity.l;
 * Calculate nitrogen leaching (sum of crop and orchard nitrogen use * leaching factor)
 $ifi %BIOPH%==on repN_leaching_saved('GM',y2) = 0
-$ifi %CROP%==on +p_Nl_raw * sum(hhold,             sum(crop_activity_endo, V_Use_Input_C.l(hhold,crop_activity_endo,'nitr','y01')) + repfert(hhold,'Nitr',y2)= p_Nl_raw * sum(crop_activity_endo, V_Use_Input_C.l(hhold,crop_activity_endo,'nitr','y01')))
-$ifi %ORCHARD%==on + p_Nl_raw * sum((hhold,c_tree), V_Nfert_AF.l(hhold,c_tree,'y01'))
+$ifi %BIOPH%==on $ifi %CROP%==on +p_Nl_raw * sum(hhold,             sum(crop_activity_endo, V_Use_Input_C.l(hhold,crop_activity_endo,'nitr','y01')) + repfert(hhold,'Nitr',y2)= p_Nl_raw * sum(crop_activity_endo, V_Use_Input_C.l(hhold,crop_activity_endo,'nitr','y01')))
+$ifi %BIOPH%==on $ifi %ORCHARD%==on + p_Nl_raw * sum((hhold,c_tree), V_Nfert_AF.l(hhold,c_tree,'y01'))
 ;
 $ifi %VALUECHAIN%==ON repLabor_saved('GM',y2) =v_laborSeller_AF.l('y01')+v_laborFeed_seller.l('y01')+v_laborLivestock_seller.l('y01')+v_laborSeller_A.l('y01')+v_laborSeeder.l('y01')+v_laborSellerInput.l('y01')+v_laborBuyerOutput.l('y01');
 ;
@@ -475,7 +505,7 @@ $ifi %VALUECHAIN%==ON repLabor_saved('GM',y2) =v_laborSeller_AF.l('y01')+v_labor
 p_Diversity(hhold,y2) = 0
 $ifi %CROP%==on  + sum(crop_activity_endo,V_Crop_Number.l('y01', hhold, crop_activity_endo))
 ;
-$ifi %BIOPH%==on $ifi %CROP%==on P_Water_Indicator("Crop", y2) =  SUM((hhold,crop_activity,field,inten,m), v_irrigation_opt.l(hhold,crop_activity,field,inten,m,'y01'));
+$ifi %BIOPH%==on $ifi %CROP%==on P_Water_Indicator("Crop", y2) =  SUM((hhold,crop_and_tree,inten,m), irrigation_month(hhold,crop_and_tree,inten,m));
 $ifi %LIVESTOCK_simplified%==on P_Water_Indicator("Livestock", y2) = 0;  
 $ifi %ORCHARD%==on P_Water_Indicator("Tree", y2) = 0;
 $ifi %CROP%==on P_Food_Indicator("Crop", y2) = sum(hhold, V_Sale_C.L(hhold,'y01'));
@@ -529,7 +559,7 @@ $endIf
 
 
 
-$ifi %BIOPH%==on $ifi %CROP%==on P_ValuePropositions('Environmental', 'Minimized Water Use', y2) =             SUM((hhold,crop_activity,field,inten,m), v_irrigation_opt.l(hhold,crop_activity,field,inten,m,'y01'));
+$ifi %BIOPH%==on $ifi %CROP%==on P_ValuePropositions('Environmental', 'Minimized Water Use', y2) =             SUM((hhold,crop_activity,inten,m), irrigation_month(hhold,crop_activity,inten,m));
 $ifi %CROP%==on          P_ValuePropositions('Environmental', 'Maximized Biodiversity', y2) = sum(hhold, p_Diversity(hhold,y2));
 * 5.8 Customer Relationships and GHG Emissions
 $iftheni %VALUECHAIN%==on
@@ -571,9 +601,12 @@ $ifi %ORCHARD%==on P_RevenueStreams('Revenue from Tree Production', y2) = sum(hh
 * Detailed soil, water, and nutrient dynamics
 ****************************************************************************
 $iftheni %BIOPH%==on
-$ifi %CROP%==on rep_v_nstress(hhold,crop_activity,field,inten,y2)          = v_nstress.l(hhold,crop_activity,field,inten,'y01');
-rep_v_nfin(hhold,field,y2) = sum((inten,crop_activity_endo),        
-p_nfin_fixed(hhold,field,inten,crop_activity_endo,'y01') * sum(crop_preceding, v_plant_c.l(hhold,crop_activity_endo,crop_preceding,field,inten,'y01')/ p_landField(hhold,field)));;
+rep_v_nstress(hhold,crop_activity,field,inten,y2)          =0
+$ifi %CROP%==on + p_nstress_fixed(hhold,crop_activity,field,inten,'y01')
+;
+rep_v_nfin(hhold,field,y2) =0
+$ifi %CROP%==on +sum((inten,crop_activity_endo),        p_nfin_fixed(hhold,field,inten,crop_activity_endo,'y01') * sum(crop_preceding, v_plant_c.l(hhold,crop_activity_endo,crop_preceding,field,inten,'y01')/ p_landField(hhold,field)));
+;
 rep_v_nres(hhold,field,y2) = p_Nres_fixed(hhold,field,'y01');
 rep_v_nmin(hhold,field,y2) = p_nmin_fixed(hhold,field,'y01');
 rep_v_nl(hhold,field,y2) = sum((crop_activity,inten),p_nl_fixed(hhold,crop_activity,field,inten,'y01') );
@@ -585,9 +618,12 @@ $endIf
 ****************************************************************************
 * YEAR RESET AND PREPARATION FOR NEXT ITERATION
 ****************************************************************************
-$include "reset_iniyear.gms" 
-);
+$include "reset_iniyear.gms"
 
+*display v0_Yld_C_stress;
+);
+*
+display rephh;
 EmbeddedCode Connect:
 
 - GAMSReader:
@@ -692,6 +728,11 @@ EmbeddedCode Connect:
       - {name: rep_v_nres, range: N_Residue!A1}
 
 endEmbeddedCode
+
+
+
+
+
 *
 *********************************************************************************
 *** ANNUAL MODEL SOLUTION AND RESULTS PROCESSING LOOP
@@ -726,10 +767,14 @@ embeddedCode Connect:
 endEmbeddedCode
 $endIf
 *
+
+
 $iftheni %DIONYSUS%==on
+
 *********************************************INITIALIZATION
 $ifi %BIOPH%==on $batinclude "Water_module_equation.gms"  water_init
 $ifi %BIOPH%==on $batinclude "Nitrate_module_equation.gms"  nitrate_init
+$iftheni %CROP%==on
 v0_Land_C(hhold,crop_activity,field) = sum((inten,NameArea), p_cropCoef(hhold,crop_activity,field,inten,NameArea)) ;
 v0_Prd_C(hhold,crop_activity,field,inten) = sum(NameYield,p_cropCoef(hhold,crop_activity,field,inten,NameYield))*sum(NameArea,p_cropCoef(hhold,crop_activity,field,inten,NameArea));
 V0_Use_Input_C(hhold,crop_activity,i) = sum((field,inten,NameArea), p_cropCoef(hhold,crop_activity,field,inten,NameArea)*p_inputReq(hhold,crop_activity,field,inten,i));
@@ -737,33 +782,35 @@ V0_Use_Seed_C(hhold,crop_activity,NameseedTotal)  = p_seedData(hhold,crop_activi
 V0_Use_Seed_C(hhold,crop_activity,NameseedOnFarm) = p_seedData(hhold,crop_activity,NameseedOnFarm) ;
 v0_prodQuant(hhold,c_product) = sum((a_j(crop_activity,c_product),field,inten), sum(NameYield,p_cropCoef(hhold,crop_activity,field,inten,NameYield))*sum(NameArea,p_cropCoef(hhold,crop_activity,field,inten,NameArea)));
 v0_prodQuant(hhold,ck) = sum((a_k(crop_activity,ck),field,inten), sum(NameStraw,p_cropCoef(hhold,crop_activity,field,inten,NameStraw))*sum(NameArea,p_cropCoef(hhold,crop_activity,field,inten,NameArea)));
+$endIf
 $ifi %BIOPH%==ON v_irrigation_opt.fx(hhold,crop_activity_endo,field,inten,m,y)=irrigation_month(hhold,crop_activity_endo,inten,m);
+
 
 **********************************************DIVERSITY**************************
 loop(y2,
 $iftheni %BIOPH%==on
 solve NITROGEN_OPTIMIZATION using MINLP maximizing TOTAL_NSTRESS_SUM;
-p_nav_begin_fixed(hhold,field,inten,crop_activity,y) =    v_nav_begin.l(hhold,field,inten,crop_activity,y);
+p_nav_begin_fixed(hhold,field,inten,crop_and_tree,y) =    v_nav_begin.l(hhold,field,inten,crop_and_tree,y);
 p_nmin_fixed(hhold,field,y) = v_nmin.l(hhold,field,y);
 p_Nres_fixed(hhold,field,y) = v_Nres.l(hhold,field,y);
-p_nl_fixed(hhold,crop_activity,field,inten,y) = v_nl.l(hhold,crop_activity,field,inten,y);
-p_nfin_fixed(hhold,field,inten,crop_activity,y) = v_nfin.l(hhold,field,inten,crop_activity,y);
+p_nl_fixed(hhold,crop_and_tree,field,inten,y) = v_nl.l(hhold,crop_and_tree,field,inten,y);
+p_nfin_fixed(hhold,field,inten,crop_and_tree,y) = v_nfin.l(hhold,field,inten,crop_and_tree,y);
 p_hini_fixed(hhold,field,y) = v_hini.l(hhold,field,y);
 p_hfin_fixed(hhold,field,y) = v_hfin.l(hhold,field,y);
-p_nav_fixed(hhold,field,inten,crop_activity,y) = v_nav.l(hhold,field,inten,crop_activity,y);
-p_nab_fixed(hhold,crop_activity,field,inten,y) = v_nab.l(hhold,crop_activity,field,inten,y);
-p_nstress_fixed(hhold,crop_activity,field,inten,y) = v_nstress.l(hhold,crop_activity,field,inten,y);
+p_nav_fixed(hhold,field,inten,crop_and_tree,y) = v_nav.l(hhold,field,inten,crop_and_tree,y);
+p_nab_fixed(hhold,crop_and_tree,field,inten,y) = v_nab.l(hhold,crop_and_tree,field,inten,y);
+p_nstress_fixed(hhold,crop_and_tree,field,inten,y) = v_nstress.l(hhold,crop_and_tree,field,inten,y);
 solve IRRIGATION_OPTIMIZATION using MINLP maximizing TOTAL_KS_SUM;
-p_irrigation_opt_fixed(hhold,crop_activity,field,inten,m,y) =     v_irrigation_opt.l(hhold,crop_activity,field,inten,m,y);
-p_KS_month_fixed(hhold,crop_activity,field,inten,m,y) =     v_KS_month.l(hhold,crop_activity,field,inten,m,y);
-p_DR_start_fixed(hhold,crop_activity,field,inten,m,y) =     v_DR_start.l(hhold,crop_activity,field,inten,m,y);
-p_DR_end_fixed(hhold,crop_activity,field,inten,m,y) =     v_DR_end.l(hhold,crop_activity,field,inten,m,y);
-p_KS_avg_annual_fixed(hhold,crop_activity,field,inten,y) =     v_KS_avg_annual.l(hhold,crop_activity,field,inten,y);
-p_b_KS_fixed(hhold,crop_activity,field,inten,m,y) =     b_KS.l(hhold,crop_activity,field,inten,m,y);
-p_b_DR_negative_fixed(hhold,crop_activity,field,inten,m,y) =    b_DR_negative.l(hhold,crop_activity,field,inten,m,y);
+p_irrigation_opt_fixed(hhold,crop_and_tree,field,inten,m,y) =     v_irrigation_opt.l(hhold,crop_and_tree,field,inten,m,y);
+p_KS_month_fixed(hhold,crop_and_tree,field,inten,m,y) =     v_KS_month.l(hhold,crop_and_tree,field,inten,m,y);
+p_DR_start_fixed(hhold,crop_and_tree,field,inten,m,y) =     v_DR_start.l(hhold,crop_and_tree,field,inten,m,y);
+p_DR_end_fixed(hhold,crop_and_tree,field,inten,m,y) =     v_DR_end.l(hhold,crop_and_tree,field,inten,m,y);
+p_KS_avg_annual_fixed(hhold,crop_and_tree,field,inten,y) =     v_KS_avg_annual.l(hhold,crop_and_tree,field,inten,y);
+p_b_DR_negative_fixed(hhold,crop_and_tree,field,inten,m,y) =    b_DR_negative.l(hhold,crop_and_tree,field,inten,m,y);
 
+$iftheni %CROP%==on
 v0_Yld_C_stress(hhold,crop_activity,crop_preceding,field,inten)=max(0,((v_Yld_C_max(hhold,crop_activity,crop_preceding,field,inten)*p_nstress_fixed(hhold,crop_activity,field,inten,'y01')*p_KS_avg_annual_fixed(hhold,crop_activity,field,inten,'y01'))-   calibBioph(hhold,crop_activity,crop_preceding,field,inten)));
-
+$endIf
 
 display p_nfin_fixed
 p_nstress_fixed
@@ -937,9 +984,12 @@ $ifi %ORCHARD%==on P_RevenueStreams('Revenue from Tree Production', y2) = sum(hh
 * Detailed soil, water, and nutrient dynamics
 ****************************************************************************
 $iftheni %BIOPH%==on
-$ifi %CROP%==on rep_v_nstress(hhold,crop_activity,field,inten,y2)          = v_nstress.l(hhold,crop_activity,field,inten,'y01');
-rep_v_nfin(hhold,field,y2) = sum((inten,crop_activity_endo),        
-p_nfin_fixed(hhold,field,inten,crop_activity_endo,'y01') * sum(crop_preceding, v_plant_c.l(hhold,crop_activity_endo,crop_preceding,field,inten,'y01')/ p_landField(hhold,field)));;
+rep_v_nstress(hhold,crop_activity,field,inten,y2)          =0
+$ifi %CROP%==on + v_nstress.l(hhold,crop_activity,field,inten,'y01')
+;
+rep_v_nfin(hhold,field,y2) =0
+$ifi %CROP%==on +sum((inten,crop_activity_endo),        p_nfin_fixed(hhold,field,inten,crop_activity_endo,'y01') * sum(crop_preceding, v_plant_c.l(hhold,crop_activity_endo,crop_preceding,field,inten,'y01')/ p_landField(hhold,field)));
+;
 rep_v_nres(hhold,field,y2) = p_Nres_fixed(hhold,field,'y01');
 rep_v_nmin(hhold,field,y2) = p_nmin_fixed(hhold,field,'y01');
 rep_v_nl(hhold,field,y2) = sum((crop_activity,inten),p_nl_fixed(hhold,crop_activity,field,inten,'y01') );
@@ -1072,11 +1122,11 @@ endEmbeddedCode
 
 
 
-
 *******************************************INITIALIZATION************************************************
 *******************************************************************************************
 $ifi %BIOPH%==on $batinclude "Water_module_equation.gms"  water_init
 $ifi %BIOPH%==on $batinclude "Nitrate_module_equation.gms"  nitrate_init
+$iftheni %CROP%==on
 v0_Land_C(hhold,crop_activity,field) = sum((inten,NameArea), p_cropCoef(hhold,crop_activity,field,inten,NameArea)) ;
 v0_Prd_C(hhold,crop_activity,field,inten) = sum(NameYield,p_cropCoef(hhold,crop_activity,field,inten,NameYield))*sum(NameArea,p_cropCoef(hhold,crop_activity,field,inten,NameArea));
 V0_Use_Input_C(hhold,crop_activity,i) = sum((field,inten,NameArea), p_cropCoef(hhold,crop_activity,field,inten,NameArea)*p_inputReq(hhold,crop_activity,field,inten,i));
@@ -1084,39 +1134,42 @@ V0_Use_Seed_C(hhold,crop_activity,NameseedTotal)  = p_seedData(hhold,crop_activi
 V0_Use_Seed_C(hhold,crop_activity,NameseedOnFarm) = p_seedData(hhold,crop_activity,NameseedOnFarm) ;
 v0_prodQuant(hhold,c_product) = sum((a_j(crop_activity,c_product),field,inten), sum(NameYield,p_cropCoef(hhold,crop_activity,field,inten,NameYield))*sum(NameArea,p_cropCoef(hhold,crop_activity,field,inten,NameArea)));
 v0_prodQuant(hhold,ck) = sum((a_k(crop_activity,ck),field,inten), sum(NameStraw,p_cropCoef(hhold,crop_activity,field,inten,NameStraw))*sum(NameArea,p_cropCoef(hhold,crop_activity,field,inten,NameArea)));
+$endIf
 $ifi %BIOPH%==ON v_irrigation_opt.fx(hhold,crop_activity_endo,field,inten,m,y)=irrigation_month(hhold,crop_activity_endo,inten,m);
+
 
 **********************************************DIVERSITY**************************
 loop(y2,
 $iftheni %BIOPH%==on
 solve NITROGEN_OPTIMIZATION using MINLP maximizing TOTAL_NSTRESS_SUM;
-p_nav_begin_fixed(hhold,field,inten,crop_activity,y) =    v_nav_begin.l(hhold,field,inten,crop_activity,y);
+p_nav_begin_fixed(hhold,field,inten,crop_and_tree,y) =    v_nav_begin.l(hhold,field,inten,crop_and_tree,y);
 p_nmin_fixed(hhold,field,y) = v_nmin.l(hhold,field,y);
 p_Nres_fixed(hhold,field,y) = v_Nres.l(hhold,field,y);
-p_nl_fixed(hhold,crop_activity,field,inten,y) = v_nl.l(hhold,crop_activity,field,inten,y);
-p_nfin_fixed(hhold,field,inten,crop_activity,y) = v_nfin.l(hhold,field,inten,crop_activity,y);
+p_nl_fixed(hhold,crop_and_tree,field,inten,y) = v_nl.l(hhold,crop_and_tree,field,inten,y);
+p_nfin_fixed(hhold,field,inten,crop_and_tree,y) = v_nfin.l(hhold,field,inten,crop_and_tree,y);
 p_hini_fixed(hhold,field,y) = v_hini.l(hhold,field,y);
 p_hfin_fixed(hhold,field,y) = v_hfin.l(hhold,field,y);
-p_nav_fixed(hhold,field,inten,crop_activity,y) = v_nav.l(hhold,field,inten,crop_activity,y);
-p_nab_fixed(hhold,crop_activity,field,inten,y) = v_nab.l(hhold,crop_activity,field,inten,y);
-p_nstress_fixed(hhold,crop_activity,field,inten,y) = v_nstress.l(hhold,crop_activity,field,inten,y);
+p_nav_fixed(hhold,field,inten,crop_and_tree,y) = v_nav.l(hhold,field,inten,crop_and_tree,y);
+p_nab_fixed(hhold,crop_and_tree,field,inten,y) = v_nab.l(hhold,crop_and_tree,field,inten,y);
+p_nstress_fixed(hhold,crop_and_tree,field,inten,y) = v_nstress.l(hhold,crop_and_tree,field,inten,y);
 solve IRRIGATION_OPTIMIZATION using MINLP maximizing TOTAL_KS_SUM;
-p_irrigation_opt_fixed(hhold,crop_activity,field,inten,m,y) =     v_irrigation_opt.l(hhold,crop_activity,field,inten,m,y);
-p_KS_month_fixed(hhold,crop_activity,field,inten,m,y) =     v_KS_month.l(hhold,crop_activity,field,inten,m,y);
-p_DR_start_fixed(hhold,crop_activity,field,inten,m,y) =     v_DR_start.l(hhold,crop_activity,field,inten,m,y);
-p_DR_end_fixed(hhold,crop_activity,field,inten,m,y) =     v_DR_end.l(hhold,crop_activity,field,inten,m,y);
-p_KS_avg_annual_fixed(hhold,crop_activity,field,inten,y) =     v_KS_avg_annual.l(hhold,crop_activity,field,inten,y);
-p_b_KS_fixed(hhold,crop_activity,field,inten,m,y) =     b_KS.l(hhold,crop_activity,field,inten,m,y);
-p_b_DR_negative_fixed(hhold,crop_activity,field,inten,m,y) =    b_DR_negative.l(hhold,crop_activity,field,inten,m,y);
+p_irrigation_opt_fixed(hhold,crop_and_tree,field,inten,m,y) =     v_irrigation_opt.l(hhold,crop_and_tree,field,inten,m,y);
+p_KS_month_fixed(hhold,crop_and_tree,field,inten,m,y) =     v_KS_month.l(hhold,crop_and_tree,field,inten,m,y);
+p_DR_start_fixed(hhold,crop_and_tree,field,inten,m,y) =     v_DR_start.l(hhold,crop_and_tree,field,inten,m,y);
+p_DR_end_fixed(hhold,crop_and_tree,field,inten,m,y) =     v_DR_end.l(hhold,crop_and_tree,field,inten,m,y);
+p_KS_avg_annual_fixed(hhold,crop_and_tree,field,inten,y) =     v_KS_avg_annual.l(hhold,crop_and_tree,field,inten,y);
+p_b_DR_negative_fixed(hhold,crop_and_tree,field,inten,m,y) =    b_DR_negative.l(hhold,crop_and_tree,field,inten,m,y);
 
+$iftheni %CROP%==on
 v0_Yld_C_stress(hhold,crop_activity,crop_preceding,field,inten)=max(0,((v_Yld_C_max(hhold,crop_activity,crop_preceding,field,inten)*p_nstress_fixed(hhold,crop_activity,field,inten,'y01')*p_KS_avg_annual_fixed(hhold,crop_activity,field,inten,'y01'))-   calibBioph(hhold,crop_activity,crop_preceding,field,inten)));
-
+$endIf
 
 display p_nfin_fixed
 p_nstress_fixed
 p_DR_start_fixed
 p_KS_avg_annual_fixed;
 $endIf
+
 
 *** Unfix variables only after the first year due to calibration
 *** This allows the model to adjust irrigation decisions in subsequent years
@@ -1283,9 +1336,12 @@ $ifi %ORCHARD%==on P_RevenueStreams('Revenue from Tree Production', y2) = sum(hh
 * Detailed soil, water, and nutrient dynamics
 ****************************************************************************
 $iftheni %BIOPH%==on
-$ifi %CROP%==on rep_v_nstress(hhold,crop_activity,field,inten,y2)          = v_nstress.l(hhold,crop_activity,field,inten,'y01');
-rep_v_nfin(hhold,field,y2) = sum((inten,crop_activity_endo),        
-p_nfin_fixed(hhold,field,inten,crop_activity_endo,'y01') * sum(crop_preceding, v_plant_c.l(hhold,crop_activity_endo,crop_preceding,field,inten,'y01')/ p_landField(hhold,field)));;
+rep_v_nstress(hhold,crop_activity,field,inten,y2)          =0
+$ifi %CROP%==on + v_nstress.l(hhold,crop_activity,field,inten,'y01')
+;
+rep_v_nfin(hhold,field,y2) =0
+$ifi %CROP%==on +sum((inten,crop_activity_endo),        p_nfin_fixed(hhold,field,inten,crop_activity_endo,'y01') * sum(crop_preceding, v_plant_c.l(hhold,crop_activity_endo,crop_preceding,field,inten,'y01')/ p_landField(hhold,field)));
+;
 rep_v_nres(hhold,field,y2) = p_Nres_fixed(hhold,field,'y01');
 rep_v_nmin(hhold,field,y2) = p_nmin_fixed(hhold,field,'y01');
 rep_v_nl(hhold,field,y2) = sum((crop_activity,inten),p_nl_fixed(hhold,crop_activity,field,inten,'y01') );
@@ -1412,6 +1468,7 @@ endEmbeddedCode
 *******************************************************************************************
 $ifi %BIOPH%==on $batinclude "Water_module_equation.gms"  water_init
 $ifi %BIOPH%==on $batinclude "Nitrate_module_equation.gms"  nitrate_init
+$iftheni %CROP%==on
 v0_Land_C(hhold,crop_activity,field) = sum((inten,NameArea), p_cropCoef(hhold,crop_activity,field,inten,NameArea)) ;
 v0_Prd_C(hhold,crop_activity,field,inten) = sum(NameYield,p_cropCoef(hhold,crop_activity,field,inten,NameYield))*sum(NameArea,p_cropCoef(hhold,crop_activity,field,inten,NameArea));
 V0_Use_Input_C(hhold,crop_activity,i) = sum((field,inten,NameArea), p_cropCoef(hhold,crop_activity,field,inten,NameArea)*p_inputReq(hhold,crop_activity,field,inten,i));
@@ -1419,40 +1476,41 @@ V0_Use_Seed_C(hhold,crop_activity,NameseedTotal)  = p_seedData(hhold,crop_activi
 V0_Use_Seed_C(hhold,crop_activity,NameseedOnFarm) = p_seedData(hhold,crop_activity,NameseedOnFarm) ;
 v0_prodQuant(hhold,c_product) = sum((a_j(crop_activity,c_product),field,inten), sum(NameYield,p_cropCoef(hhold,crop_activity,field,inten,NameYield))*sum(NameArea,p_cropCoef(hhold,crop_activity,field,inten,NameArea)));
 v0_prodQuant(hhold,ck) = sum((a_k(crop_activity,ck),field,inten), sum(NameStraw,p_cropCoef(hhold,crop_activity,field,inten,NameStraw))*sum(NameArea,p_cropCoef(hhold,crop_activity,field,inten,NameArea)));
+$endIf
 $ifi %BIOPH%==ON v_irrigation_opt.fx(hhold,crop_activity_endo,field,inten,m,y)=irrigation_month(hhold,crop_activity_endo,inten,m);
+
 
 **********************************************DIVERSITY**************************
 loop(y2,
 $iftheni %BIOPH%==on
 solve NITROGEN_OPTIMIZATION using MINLP maximizing TOTAL_NSTRESS_SUM;
-p_nav_begin_fixed(hhold,field,inten,crop_activity,y) =    v_nav_begin.l(hhold,field,inten,crop_activity,y);
+p_nav_begin_fixed(hhold,field,inten,crop_and_tree,y) =    v_nav_begin.l(hhold,field,inten,crop_and_tree,y);
 p_nmin_fixed(hhold,field,y) = v_nmin.l(hhold,field,y);
 p_Nres_fixed(hhold,field,y) = v_Nres.l(hhold,field,y);
-p_nl_fixed(hhold,crop_activity,field,inten,y) = v_nl.l(hhold,crop_activity,field,inten,y);
-p_nfin_fixed(hhold,field,inten,crop_activity,y) = v_nfin.l(hhold,field,inten,crop_activity,y);
+p_nl_fixed(hhold,crop_and_tree,field,inten,y) = v_nl.l(hhold,crop_and_tree,field,inten,y);
+p_nfin_fixed(hhold,field,inten,crop_and_tree,y) = v_nfin.l(hhold,field,inten,crop_and_tree,y);
 p_hini_fixed(hhold,field,y) = v_hini.l(hhold,field,y);
 p_hfin_fixed(hhold,field,y) = v_hfin.l(hhold,field,y);
-p_nav_fixed(hhold,field,inten,crop_activity,y) = v_nav.l(hhold,field,inten,crop_activity,y);
-p_nab_fixed(hhold,crop_activity,field,inten,y) = v_nab.l(hhold,crop_activity,field,inten,y);
-p_nstress_fixed(hhold,crop_activity,field,inten,y) = v_nstress.l(hhold,crop_activity,field,inten,y);
+p_nav_fixed(hhold,field,inten,crop_and_tree,y) = v_nav.l(hhold,field,inten,crop_and_tree,y);
+p_nab_fixed(hhold,crop_and_tree,field,inten,y) = v_nab.l(hhold,crop_and_tree,field,inten,y);
+p_nstress_fixed(hhold,crop_and_tree,field,inten,y) = v_nstress.l(hhold,crop_and_tree,field,inten,y);
 solve IRRIGATION_OPTIMIZATION using MINLP maximizing TOTAL_KS_SUM;
-p_irrigation_opt_fixed(hhold,crop_activity,field,inten,m,y) =     v_irrigation_opt.l(hhold,crop_activity,field,inten,m,y);
-p_KS_month_fixed(hhold,crop_activity,field,inten,m,y) =     v_KS_month.l(hhold,crop_activity,field,inten,m,y);
-p_DR_start_fixed(hhold,crop_activity,field,inten,m,y) =     v_DR_start.l(hhold,crop_activity,field,inten,m,y);
-p_DR_end_fixed(hhold,crop_activity,field,inten,m,y) =     v_DR_end.l(hhold,crop_activity,field,inten,m,y);
-p_KS_avg_annual_fixed(hhold,crop_activity,field,inten,y) =     v_KS_avg_annual.l(hhold,crop_activity,field,inten,y);
-p_b_KS_fixed(hhold,crop_activity,field,inten,m,y) =     b_KS.l(hhold,crop_activity,field,inten,m,y);
-p_b_DR_negative_fixed(hhold,crop_activity,field,inten,m,y) =    b_DR_negative.l(hhold,crop_activity,field,inten,m,y);
+p_irrigation_opt_fixed(hhold,crop_and_tree,field,inten,m,y) =     v_irrigation_opt.l(hhold,crop_and_tree,field,inten,m,y);
+p_KS_month_fixed(hhold,crop_and_tree,field,inten,m,y) =     v_KS_month.l(hhold,crop_and_tree,field,inten,m,y);
+p_DR_start_fixed(hhold,crop_and_tree,field,inten,m,y) =     v_DR_start.l(hhold,crop_and_tree,field,inten,m,y);
+p_DR_end_fixed(hhold,crop_and_tree,field,inten,m,y) =     v_DR_end.l(hhold,crop_and_tree,field,inten,m,y);
+p_KS_avg_annual_fixed(hhold,crop_and_tree,field,inten,y) =     v_KS_avg_annual.l(hhold,crop_and_tree,field,inten,y);
+p_b_DR_negative_fixed(hhold,crop_and_tree,field,inten,m,y) =    b_DR_negative.l(hhold,crop_and_tree,field,inten,m,y);
 
+$iftheni %CROP%==on
 v0_Yld_C_stress(hhold,crop_activity,crop_preceding,field,inten)=max(0,((v_Yld_C_max(hhold,crop_activity,crop_preceding,field,inten)*p_nstress_fixed(hhold,crop_activity,field,inten,'y01')*p_KS_avg_annual_fixed(hhold,crop_activity,field,inten,'y01'))-   calibBioph(hhold,crop_activity,crop_preceding,field,inten)));
-
+$endIf
 
 display p_nfin_fixed
 p_nstress_fixed
 p_DR_start_fixed
 p_KS_avg_annual_fixed;
 $endIf
-
 *** Unfix variables only after the first year due to calibration
 *** This allows the model to adjust irrigation decisions in subsequent years
 solve dahbsim using MINLP maximizing V_Total_ValueChain_Labor;
@@ -1621,9 +1679,12 @@ $ifi %ORCHARD%==on P_RevenueStreams('Revenue from Tree Production', y2) = sum(hh
 * Detailed soil, water, and nutrient dynamics
 ****************************************************************************
 $iftheni %BIOPH%==on
-$ifi %CROP%==on rep_v_nstress(hhold,crop_activity,field,inten,y2)          = v_nstress.l(hhold,crop_activity,field,inten,'y01');
-rep_v_nfin(hhold,field,y2) = sum((inten,crop_activity_endo),        
-p_nfin_fixed(hhold,field,inten,crop_activity_endo,'y01') * sum(crop_preceding, v_plant_c.l(hhold,crop_activity_endo,crop_preceding,field,inten,'y01')/ p_landField(hhold,field)));;
+rep_v_nstress(hhold,crop_activity,field,inten,y2)          =0
+$ifi %CROP%==on + v_nstress.l(hhold,crop_activity,field,inten,'y01')
+;
+rep_v_nfin(hhold,field,y2) =0
+$ifi %CROP%==on +sum((inten,crop_activity_endo),        p_nfin_fixed(hhold,field,inten,crop_activity_endo,'y01') * sum(crop_preceding, v_plant_c.l(hhold,crop_activity_endo,crop_preceding,field,inten,'y01')/ p_landField(hhold,field)));
+;
 rep_v_nres(hhold,field,y2) = p_Nres_fixed(hhold,field,'y01');
 rep_v_nmin(hhold,field,y2) = p_nmin_fixed(hhold,field,'y01');
 rep_v_nl(hhold,field,y2) = sum((crop_activity,inten),p_nl_fixed(hhold,crop_activity,field,inten,'y01') );
@@ -1745,13 +1806,14 @@ EmbeddedCode Connect:
 
 endEmbeddedCode
 
-
+*$onText
 
 
 *******************************************INITIALIZATION************************************************
 *******************************************************************************************
 $ifi %BIOPH%==on $batinclude "Water_module_equation.gms"  water_init
 $ifi %BIOPH%==on $batinclude "Nitrate_module_equation.gms"  nitrate_init
+$iftheni %CROP%==on
 v0_Land_C(hhold,crop_activity,field) = sum((inten,NameArea), p_cropCoef(hhold,crop_activity,field,inten,NameArea)) ;
 v0_Prd_C(hhold,crop_activity,field,inten) = sum(NameYield,p_cropCoef(hhold,crop_activity,field,inten,NameYield))*sum(NameArea,p_cropCoef(hhold,crop_activity,field,inten,NameArea));
 V0_Use_Input_C(hhold,crop_activity,i) = sum((field,inten,NameArea), p_cropCoef(hhold,crop_activity,field,inten,NameArea)*p_inputReq(hhold,crop_activity,field,inten,i));
@@ -1759,40 +1821,41 @@ V0_Use_Seed_C(hhold,crop_activity,NameseedTotal)  = p_seedData(hhold,crop_activi
 V0_Use_Seed_C(hhold,crop_activity,NameseedOnFarm) = p_seedData(hhold,crop_activity,NameseedOnFarm) ;
 v0_prodQuant(hhold,c_product) = sum((a_j(crop_activity,c_product),field,inten), sum(NameYield,p_cropCoef(hhold,crop_activity,field,inten,NameYield))*sum(NameArea,p_cropCoef(hhold,crop_activity,field,inten,NameArea)));
 v0_prodQuant(hhold,ck) = sum((a_k(crop_activity,ck),field,inten), sum(NameStraw,p_cropCoef(hhold,crop_activity,field,inten,NameStraw))*sum(NameArea,p_cropCoef(hhold,crop_activity,field,inten,NameArea)));
+$endIf
 $ifi %BIOPH%==ON v_irrigation_opt.fx(hhold,crop_activity_endo,field,inten,m,y)=irrigation_month(hhold,crop_activity_endo,inten,m);
+
 
 **********************************************DIVERSITY**************************
 loop(y2,
 $iftheni %BIOPH%==on
 solve NITROGEN_OPTIMIZATION using MINLP maximizing TOTAL_NSTRESS_SUM;
-p_nav_begin_fixed(hhold,field,inten,crop_activity,y) =    v_nav_begin.l(hhold,field,inten,crop_activity,y);
+p_nav_begin_fixed(hhold,field,inten,crop_and_tree,y) =    v_nav_begin.l(hhold,field,inten,crop_and_tree,y);
 p_nmin_fixed(hhold,field,y) = v_nmin.l(hhold,field,y);
 p_Nres_fixed(hhold,field,y) = v_Nres.l(hhold,field,y);
-p_nl_fixed(hhold,crop_activity,field,inten,y) = v_nl.l(hhold,crop_activity,field,inten,y);
-p_nfin_fixed(hhold,field,inten,crop_activity,y) = v_nfin.l(hhold,field,inten,crop_activity,y);
+p_nl_fixed(hhold,crop_and_tree,field,inten,y) = v_nl.l(hhold,crop_and_tree,field,inten,y);
+p_nfin_fixed(hhold,field,inten,crop_and_tree,y) = v_nfin.l(hhold,field,inten,crop_and_tree,y);
 p_hini_fixed(hhold,field,y) = v_hini.l(hhold,field,y);
 p_hfin_fixed(hhold,field,y) = v_hfin.l(hhold,field,y);
-p_nav_fixed(hhold,field,inten,crop_activity,y) = v_nav.l(hhold,field,inten,crop_activity,y);
-p_nab_fixed(hhold,crop_activity,field,inten,y) = v_nab.l(hhold,crop_activity,field,inten,y);
-p_nstress_fixed(hhold,crop_activity,field,inten,y) = v_nstress.l(hhold,crop_activity,field,inten,y);
+p_nav_fixed(hhold,field,inten,crop_and_tree,y) = v_nav.l(hhold,field,inten,crop_and_tree,y);
+p_nab_fixed(hhold,crop_and_tree,field,inten,y) = v_nab.l(hhold,crop_and_tree,field,inten,y);
+p_nstress_fixed(hhold,crop_and_tree,field,inten,y) = v_nstress.l(hhold,crop_and_tree,field,inten,y);
 solve IRRIGATION_OPTIMIZATION using MINLP maximizing TOTAL_KS_SUM;
-p_irrigation_opt_fixed(hhold,crop_activity,field,inten,m,y) =     v_irrigation_opt.l(hhold,crop_activity,field,inten,m,y);
-p_KS_month_fixed(hhold,crop_activity,field,inten,m,y) =     v_KS_month.l(hhold,crop_activity,field,inten,m,y);
-p_DR_start_fixed(hhold,crop_activity,field,inten,m,y) =     v_DR_start.l(hhold,crop_activity,field,inten,m,y);
-p_DR_end_fixed(hhold,crop_activity,field,inten,m,y) =     v_DR_end.l(hhold,crop_activity,field,inten,m,y);
-p_KS_avg_annual_fixed(hhold,crop_activity,field,inten,y) =     v_KS_avg_annual.l(hhold,crop_activity,field,inten,y);
-p_b_KS_fixed(hhold,crop_activity,field,inten,m,y) =     b_KS.l(hhold,crop_activity,field,inten,m,y);
-p_b_DR_negative_fixed(hhold,crop_activity,field,inten,m,y) =    b_DR_negative.l(hhold,crop_activity,field,inten,m,y);
+p_irrigation_opt_fixed(hhold,crop_and_tree,field,inten,m,y) =     v_irrigation_opt.l(hhold,crop_and_tree,field,inten,m,y);
+p_KS_month_fixed(hhold,crop_and_tree,field,inten,m,y) =     v_KS_month.l(hhold,crop_and_tree,field,inten,m,y);
+p_DR_start_fixed(hhold,crop_and_tree,field,inten,m,y) =     v_DR_start.l(hhold,crop_and_tree,field,inten,m,y);
+p_DR_end_fixed(hhold,crop_and_tree,field,inten,m,y) =     v_DR_end.l(hhold,crop_and_tree,field,inten,m,y);
+p_KS_avg_annual_fixed(hhold,crop_and_tree,field,inten,y) =     v_KS_avg_annual.l(hhold,crop_and_tree,field,inten,y);
+p_b_DR_negative_fixed(hhold,crop_and_tree,field,inten,m,y) =    b_DR_negative.l(hhold,crop_and_tree,field,inten,m,y);
 
+$iftheni %CROP%==on
 v0_Yld_C_stress(hhold,crop_activity,crop_preceding,field,inten)=max(0,((v_Yld_C_max(hhold,crop_activity,crop_preceding,field,inten)*p_nstress_fixed(hhold,crop_activity,field,inten,'y01')*p_KS_avg_annual_fixed(hhold,crop_activity,field,inten,'y01'))-   calibBioph(hhold,crop_activity,crop_preceding,field,inten)));
-
+$endIf
 
 display p_nfin_fixed
 p_nstress_fixed
 p_DR_start_fixed
 p_KS_avg_annual_fixed;
 $endIf
-
 *** Unfix variables only after the first year due to calibration
 *** This allows the model to adjust irrigation decisions in subsequent years
 solve dahbsim using MINLP maximizing V_GHGtotal;
@@ -1958,9 +2021,12 @@ $ifi %ORCHARD%==on P_RevenueStreams('Revenue from Tree Production', y2) = sum(hh
 * Detailed soil, water, and nutrient dynamics
 ****************************************************************************
 $iftheni %BIOPH%==on
-$ifi %CROP%==on rep_v_nstress(hhold,crop_activity,field,inten,y2)          = v_nstress.l(hhold,crop_activity,field,inten,'y01');
-rep_v_nfin(hhold,field,y2) = sum((inten,crop_activity_endo),        
-p_nfin_fixed(hhold,field,inten,crop_activity_endo,'y01') * sum(crop_preceding, v_plant_c.l(hhold,crop_activity_endo,crop_preceding,field,inten,'y01')/ p_landField(hhold,field)));;
+rep_v_nstress(hhold,crop_activity,field,inten,y2)          =0
+$ifi %CROP%==on + v_nstress.l(hhold,crop_activity,field,inten,'y01')
+;
+rep_v_nfin(hhold,field,y2) =0
+$ifi %CROP%==on +sum((inten,crop_activity_endo),        p_nfin_fixed(hhold,field,inten,crop_activity_endo,'y01') * sum(crop_preceding, v_plant_c.l(hhold,crop_activity_endo,crop_preceding,field,inten,'y01')/ p_landField(hhold,field)))
+;
 rep_v_nres(hhold,field,y2) = p_Nres_fixed(hhold,field,'y01');
 rep_v_nmin(hhold,field,y2) = p_nmin_fixed(hhold,field,'y01');
 rep_v_nl(hhold,field,y2) = sum((crop_activity,inten),p_nl_fixed(hhold,crop_activity,field,inten,'y01') );
@@ -2091,6 +2157,7 @@ endEmbeddedCode
 *******************************************************************************************
 $ifi %BIOPH%==on $batinclude "Water_module_equation.gms"  water_init
 $ifi %BIOPH%==on $batinclude "Nitrate_module_equation.gms"  nitrate_init
+$iftheni %CROP%==on
 v0_Land_C(hhold,crop_activity,field) = sum((inten,NameArea), p_cropCoef(hhold,crop_activity,field,inten,NameArea)) ;
 v0_Prd_C(hhold,crop_activity,field,inten) = sum(NameYield,p_cropCoef(hhold,crop_activity,field,inten,NameYield))*sum(NameArea,p_cropCoef(hhold,crop_activity,field,inten,NameArea));
 V0_Use_Input_C(hhold,crop_activity,i) = sum((field,inten,NameArea), p_cropCoef(hhold,crop_activity,field,inten,NameArea)*p_inputReq(hhold,crop_activity,field,inten,i));
@@ -2098,33 +2165,35 @@ V0_Use_Seed_C(hhold,crop_activity,NameseedTotal)  = p_seedData(hhold,crop_activi
 V0_Use_Seed_C(hhold,crop_activity,NameseedOnFarm) = p_seedData(hhold,crop_activity,NameseedOnFarm) ;
 v0_prodQuant(hhold,c_product) = sum((a_j(crop_activity,c_product),field,inten), sum(NameYield,p_cropCoef(hhold,crop_activity,field,inten,NameYield))*sum(NameArea,p_cropCoef(hhold,crop_activity,field,inten,NameArea)));
 v0_prodQuant(hhold,ck) = sum((a_k(crop_activity,ck),field,inten), sum(NameStraw,p_cropCoef(hhold,crop_activity,field,inten,NameStraw))*sum(NameArea,p_cropCoef(hhold,crop_activity,field,inten,NameArea)));
+$endIf
 $ifi %BIOPH%==ON v_irrigation_opt.fx(hhold,crop_activity_endo,field,inten,m,y)=irrigation_month(hhold,crop_activity_endo,inten,m);
+
 
 **********************************************DIVERSITY**************************
 loop(y2,
 $iftheni %BIOPH%==on
 solve NITROGEN_OPTIMIZATION using MINLP maximizing TOTAL_NSTRESS_SUM;
-p_nav_begin_fixed(hhold,field,inten,crop_activity,y) =    v_nav_begin.l(hhold,field,inten,crop_activity,y);
+p_nav_begin_fixed(hhold,field,inten,crop_and_tree,y) =    v_nav_begin.l(hhold,field,inten,crop_and_tree,y);
 p_nmin_fixed(hhold,field,y) = v_nmin.l(hhold,field,y);
 p_Nres_fixed(hhold,field,y) = v_Nres.l(hhold,field,y);
-p_nl_fixed(hhold,crop_activity,field,inten,y) = v_nl.l(hhold,crop_activity,field,inten,y);
-p_nfin_fixed(hhold,field,inten,crop_activity,y) = v_nfin.l(hhold,field,inten,crop_activity,y);
+p_nl_fixed(hhold,crop_and_tree,field,inten,y) = v_nl.l(hhold,crop_and_tree,field,inten,y);
+p_nfin_fixed(hhold,field,inten,crop_and_tree,y) = v_nfin.l(hhold,field,inten,crop_and_tree,y);
 p_hini_fixed(hhold,field,y) = v_hini.l(hhold,field,y);
 p_hfin_fixed(hhold,field,y) = v_hfin.l(hhold,field,y);
-p_nav_fixed(hhold,field,inten,crop_activity,y) = v_nav.l(hhold,field,inten,crop_activity,y);
-p_nab_fixed(hhold,crop_activity,field,inten,y) = v_nab.l(hhold,crop_activity,field,inten,y);
-p_nstress_fixed(hhold,crop_activity,field,inten,y) = v_nstress.l(hhold,crop_activity,field,inten,y);
+p_nav_fixed(hhold,field,inten,crop_and_tree,y) = v_nav.l(hhold,field,inten,crop_and_tree,y);
+p_nab_fixed(hhold,crop_and_tree,field,inten,y) = v_nab.l(hhold,crop_and_tree,field,inten,y);
+p_nstress_fixed(hhold,crop_and_tree,field,inten,y) = v_nstress.l(hhold,crop_and_tree,field,inten,y);
 solve IRRIGATION_OPTIMIZATION using MINLP maximizing TOTAL_KS_SUM;
-p_irrigation_opt_fixed(hhold,crop_activity,field,inten,m,y) =     v_irrigation_opt.l(hhold,crop_activity,field,inten,m,y);
-p_KS_month_fixed(hhold,crop_activity,field,inten,m,y) =     v_KS_month.l(hhold,crop_activity,field,inten,m,y);
-p_DR_start_fixed(hhold,crop_activity,field,inten,m,y) =     v_DR_start.l(hhold,crop_activity,field,inten,m,y);
-p_DR_end_fixed(hhold,crop_activity,field,inten,m,y) =     v_DR_end.l(hhold,crop_activity,field,inten,m,y);
-p_KS_avg_annual_fixed(hhold,crop_activity,field,inten,y) =     v_KS_avg_annual.l(hhold,crop_activity,field,inten,y);
-p_b_KS_fixed(hhold,crop_activity,field,inten,m,y) =     b_KS.l(hhold,crop_activity,field,inten,m,y);
-p_b_DR_negative_fixed(hhold,crop_activity,field,inten,m,y) =    b_DR_negative.l(hhold,crop_activity,field,inten,m,y);
+p_irrigation_opt_fixed(hhold,crop_and_tree,field,inten,m,y) =     v_irrigation_opt.l(hhold,crop_and_tree,field,inten,m,y);
+p_KS_month_fixed(hhold,crop_and_tree,field,inten,m,y) =     v_KS_month.l(hhold,crop_and_tree,field,inten,m,y);
+p_DR_start_fixed(hhold,crop_and_tree,field,inten,m,y) =     v_DR_start.l(hhold,crop_and_tree,field,inten,m,y);
+p_DR_end_fixed(hhold,crop_and_tree,field,inten,m,y) =     v_DR_end.l(hhold,crop_and_tree,field,inten,m,y);
+p_KS_avg_annual_fixed(hhold,crop_and_tree,field,inten,y) =     v_KS_avg_annual.l(hhold,crop_and_tree,field,inten,y);
+p_b_DR_negative_fixed(hhold,crop_and_tree,field,inten,m,y) =    b_DR_negative.l(hhold,crop_and_tree,field,inten,m,y);
 
+$iftheni %CROP%==on
 v0_Yld_C_stress(hhold,crop_activity,crop_preceding,field,inten)=max(0,((v_Yld_C_max(hhold,crop_activity,crop_preceding,field,inten)*p_nstress_fixed(hhold,crop_activity,field,inten,'y01')*p_KS_avg_annual_fixed(hhold,crop_activity,field,inten,'y01'))-   calibBioph(hhold,crop_activity,crop_preceding,field,inten)));
-
+$endIf
 
 display p_nfin_fixed
 p_nstress_fixed
@@ -2297,9 +2366,12 @@ $ifi %ORCHARD%==on P_RevenueStreams('Revenue from Tree Production', y2) = sum(hh
 * Detailed soil, water, and nutrient dynamics
 ****************************************************************************
 $iftheni %BIOPH%==on
-$ifi %CROP%==on rep_v_nstress(hhold,crop_activity,field,inten,y2)          = v_nstress.l(hhold,crop_activity,field,inten,'y01');
-rep_v_nfin(hhold,field,y2) = sum((inten,crop_activity_endo),        
-p_nfin_fixed(hhold,field,inten,crop_activity_endo,'y01') * sum(crop_preceding, v_plant_c.l(hhold,crop_activity_endo,crop_preceding,field,inten,'y01')/ p_landField(hhold,field)));;
+rep_v_nstress(hhold,crop_activity,field,inten,y2)          =0
+$ifi %CROP%==on + v_nstress.l(hhold,crop_activity,field,inten,'y01')
+;
+rep_v_nfin(hhold,field,y2) =0
+$ifi %CROP%==on +sum((inten,crop_activity_endo),        p_nfin_fixed(hhold,field,inten,crop_activity_endo,'y01') * sum(crop_preceding, v_plant_c.l(hhold,crop_activity_endo,crop_preceding,field,inten,'y01')/ p_landField(hhold,field)))
+;
 rep_v_nres(hhold,field,y2) = p_Nres_fixed(hhold,field,'y01');
 rep_v_nmin(hhold,field,y2) = p_nmin_fixed(hhold,field,'y01');
 rep_v_nl(hhold,field,y2) = sum((crop_activity,inten),p_nl_fixed(hhold,crop_activity,field,inten,'y01') );
@@ -2523,6 +2595,7 @@ model MCDA /dahbsim +E_MCDA/;
 *******************************************************************************************
 $ifi %BIOPH%==on $batinclude "Water_module_equation.gms"  water_init
 $ifi %BIOPH%==on $batinclude "Nitrate_module_equation.gms"  nitrate_init
+$iftheni %CROP%==on
 v0_Land_C(hhold,crop_activity,field) = sum((inten,NameArea), p_cropCoef(hhold,crop_activity,field,inten,NameArea)) ;
 v0_Prd_C(hhold,crop_activity,field,inten) = sum(NameYield,p_cropCoef(hhold,crop_activity,field,inten,NameYield))*sum(NameArea,p_cropCoef(hhold,crop_activity,field,inten,NameArea));
 V0_Use_Input_C(hhold,crop_activity,i) = sum((field,inten,NameArea), p_cropCoef(hhold,crop_activity,field,inten,NameArea)*p_inputReq(hhold,crop_activity,field,inten,i));
@@ -2530,33 +2603,35 @@ V0_Use_Seed_C(hhold,crop_activity,NameseedTotal)  = p_seedData(hhold,crop_activi
 V0_Use_Seed_C(hhold,crop_activity,NameseedOnFarm) = p_seedData(hhold,crop_activity,NameseedOnFarm) ;
 v0_prodQuant(hhold,c_product) = sum((a_j(crop_activity,c_product),field,inten), sum(NameYield,p_cropCoef(hhold,crop_activity,field,inten,NameYield))*sum(NameArea,p_cropCoef(hhold,crop_activity,field,inten,NameArea)));
 v0_prodQuant(hhold,ck) = sum((a_k(crop_activity,ck),field,inten), sum(NameStraw,p_cropCoef(hhold,crop_activity,field,inten,NameStraw))*sum(NameArea,p_cropCoef(hhold,crop_activity,field,inten,NameArea)));
+$endIf
 $ifi %BIOPH%==ON v_irrigation_opt.fx(hhold,crop_activity_endo,field,inten,m,y)=irrigation_month(hhold,crop_activity_endo,inten,m);
+
 
 **********************************************DIVERSITY**************************
 loop(y2,
 $iftheni %BIOPH%==on
 solve NITROGEN_OPTIMIZATION using MINLP maximizing TOTAL_NSTRESS_SUM;
-p_nav_begin_fixed(hhold,field,inten,crop_activity,y) =    v_nav_begin.l(hhold,field,inten,crop_activity,y);
+p_nav_begin_fixed(hhold,field,inten,crop_and_tree,y) =    v_nav_begin.l(hhold,field,inten,crop_and_tree,y);
 p_nmin_fixed(hhold,field,y) = v_nmin.l(hhold,field,y);
 p_Nres_fixed(hhold,field,y) = v_Nres.l(hhold,field,y);
-p_nl_fixed(hhold,crop_activity,field,inten,y) = v_nl.l(hhold,crop_activity,field,inten,y);
-p_nfin_fixed(hhold,field,inten,crop_activity,y) = v_nfin.l(hhold,field,inten,crop_activity,y);
+p_nl_fixed(hhold,crop_and_tree,field,inten,y) = v_nl.l(hhold,crop_and_tree,field,inten,y);
+p_nfin_fixed(hhold,field,inten,crop_and_tree,y) = v_nfin.l(hhold,field,inten,crop_and_tree,y);
 p_hini_fixed(hhold,field,y) = v_hini.l(hhold,field,y);
 p_hfin_fixed(hhold,field,y) = v_hfin.l(hhold,field,y);
-p_nav_fixed(hhold,field,inten,crop_activity,y) = v_nav.l(hhold,field,inten,crop_activity,y);
-p_nab_fixed(hhold,crop_activity,field,inten,y) = v_nab.l(hhold,crop_activity,field,inten,y);
-p_nstress_fixed(hhold,crop_activity,field,inten,y) = v_nstress.l(hhold,crop_activity,field,inten,y);
+p_nav_fixed(hhold,field,inten,crop_and_tree,y) = v_nav.l(hhold,field,inten,crop_and_tree,y);
+p_nab_fixed(hhold,crop_and_tree,field,inten,y) = v_nab.l(hhold,crop_and_tree,field,inten,y);
+p_nstress_fixed(hhold,crop_and_tree,field,inten,y) = v_nstress.l(hhold,crop_and_tree,field,inten,y);
 solve IRRIGATION_OPTIMIZATION using MINLP maximizing TOTAL_KS_SUM;
-p_irrigation_opt_fixed(hhold,crop_activity,field,inten,m,y) =     v_irrigation_opt.l(hhold,crop_activity,field,inten,m,y);
-p_KS_month_fixed(hhold,crop_activity,field,inten,m,y) =     v_KS_month.l(hhold,crop_activity,field,inten,m,y);
-p_DR_start_fixed(hhold,crop_activity,field,inten,m,y) =     v_DR_start.l(hhold,crop_activity,field,inten,m,y);
-p_DR_end_fixed(hhold,crop_activity,field,inten,m,y) =     v_DR_end.l(hhold,crop_activity,field,inten,m,y);
-p_KS_avg_annual_fixed(hhold,crop_activity,field,inten,y) =     v_KS_avg_annual.l(hhold,crop_activity,field,inten,y);
-p_b_KS_fixed(hhold,crop_activity,field,inten,m,y) =     b_KS.l(hhold,crop_activity,field,inten,m,y);
-p_b_DR_negative_fixed(hhold,crop_activity,field,inten,m,y) =    b_DR_negative.l(hhold,crop_activity,field,inten,m,y);
+p_irrigation_opt_fixed(hhold,crop_and_tree,field,inten,m,y) =     v_irrigation_opt.l(hhold,crop_and_tree,field,inten,m,y);
+p_KS_month_fixed(hhold,crop_and_tree,field,inten,m,y) =     v_KS_month.l(hhold,crop_and_tree,field,inten,m,y);
+p_DR_start_fixed(hhold,crop_and_tree,field,inten,m,y) =     v_DR_start.l(hhold,crop_and_tree,field,inten,m,y);
+p_DR_end_fixed(hhold,crop_and_tree,field,inten,m,y) =     v_DR_end.l(hhold,crop_and_tree,field,inten,m,y);
+p_KS_avg_annual_fixed(hhold,crop_and_tree,field,inten,y) =     v_KS_avg_annual.l(hhold,crop_and_tree,field,inten,y);
+p_b_DR_negative_fixed(hhold,crop_and_tree,field,inten,m,y) =    b_DR_negative.l(hhold,crop_and_tree,field,inten,m,y);
 
+$iftheni %CROP%==on
 v0_Yld_C_stress(hhold,crop_activity,crop_preceding,field,inten)=max(0,((v_Yld_C_max(hhold,crop_activity,crop_preceding,field,inten)*p_nstress_fixed(hhold,crop_activity,field,inten,'y01')*p_KS_avg_annual_fixed(hhold,crop_activity,field,inten,'y01'))-   calibBioph(hhold,crop_activity,crop_preceding,field,inten)));
-
+$endIf
 
 display p_nfin_fixed
 p_nstress_fixed
@@ -2731,9 +2806,12 @@ $ifi %ORCHARD%==on P_RevenueStreams('Revenue from Tree Production', y2) = sum(hh
 * Detailed soil, water, and nutrient dynamics
 ****************************************************************************
 $iftheni %BIOPH%==on
-$ifi %CROP%==on rep_v_nstress(hhold,crop_activity,field,inten,y2)          = v_nstress.l(hhold,crop_activity,field,inten,'y01');
-rep_v_nfin(hhold,field,y2) = sum((inten,crop_activity_endo),        
-p_nfin_fixed(hhold,field,inten,crop_activity_endo,'y01') * sum(crop_preceding, v_plant_c.l(hhold,crop_activity_endo,crop_preceding,field,inten,'y01')/ p_landField(hhold,field)));;
+rep_v_nstress(hhold,crop_activity,field,inten,y2)          =0
+$ifi %CROP%==on + v_nstress.l(hhold,crop_activity,field,inten,'y01')
+;
+rep_v_nfin(hhold,field,y2) =0
+$ifi %CROP%==on +sum((inten,crop_activity_endo),        p_nfin_fixed(hhold,field,inten,crop_activity_endo,'y01') * sum(crop_preceding, v_plant_c.l(hhold,crop_activity_endo,crop_preceding,field,inten,'y01')/ p_landField(hhold,field)))
+;
 rep_v_nres(hhold,field,y2) = p_Nres_fixed(hhold,field,'y01');
 rep_v_nmin(hhold,field,y2) = p_nmin_fixed(hhold,field,'y01');
 rep_v_nl(hhold,field,y2) = sum((crop_activity,inten),p_nl_fixed(hhold,crop_activity,field,inten,'y01') );
@@ -2874,7 +2952,7 @@ embeddedCode Connect:
       - {name: repProductivity,range: repProductivity!A1}
 endEmbeddedCode
 
-
+*$offText
 
 $endIf
 **

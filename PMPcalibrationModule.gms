@@ -1,12 +1,6 @@
+PMPswitch = 1;
 
-*Siliana
-*For hh1 0.00001
-*For hh2 eps
-
-*Luxor
-*For hh2 eps
-*For hh3 eps
-delta1=0.000001;
+delta1=eps;
 
 
 
