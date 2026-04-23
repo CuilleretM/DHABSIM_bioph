@@ -4,7 +4,7 @@ delta1=eps;
 
 
 
-solve dahbsim using MINLP maximizing v_npv_tot;
+solve dahbsim using MIP maximizing v_npv_tot;
 *
 
 
@@ -63,7 +63,7 @@ PMPswitch = 2;
 
 *-- Solve the unconstrained PMP-calibrated model
 *$ifi %RISK%==off
-solve dahbsim using MINLP maximizing v_npv_tot;
+solve dahbsim_PMP using MINLP maximizing v_npv_tot;
 *$ifi %RISK%==on  solve dahbsim using MINLP maximizing v_objectif;
 
 *~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*

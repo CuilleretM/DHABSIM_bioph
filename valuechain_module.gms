@@ -226,7 +226,7 @@ E_TransportCost_C(hhold,y)..
         p_distance_seeder(hhold,seeder)*p_distanceprice(hhold));
 
 E_GHG_C(hhold,y)..
-    v_GHG_C(hhold,y)=E= sum((crop_activity_endo,field,inten),v_Prd_C(hhold,crop_activity_endo,field,inten,y))/(
+    v_GHG_C(hhold,y)=E= (
  sum((inpv,seller_C), v_inputSeller_C(hhold,inpv,seller_C,y)*
         (p_distance_seller_C(hhold,seller_C)*P_GHG(hhold,"ghg_km")+P_GHG(hhold,inpv)))
         
@@ -291,7 +291,7 @@ $ifi %ORCHARD%==on + sum(seller_AF,v_inputSeller_AF(hhold,"plants_nb",seller_AF,
 $ifi %ORCHARD%==on + sum((c_treej,buyer),v_outputBuyer(hhold,c_treej,buyer,y)*p_distance_buyer(hhold,buyer)*p_distanceprice(hhold));
 
 E_GHG_AF(hhold,y)..
-    v_GHG_AF(hhold,y) =E=sum(c_treej,v_prodQuant(hhold,c_treej,y))/(
+    v_GHG_AF(hhold,y) =E=(
     sum(seller_AF, 
         v_inputSeller_AF(hhold,"other",seller_AF,y) *
         (p_distance_seller_AF(hhold,seller_AF) * P_GHG(hhold,"ghg_km") + P_GHG(hhold,"other"))

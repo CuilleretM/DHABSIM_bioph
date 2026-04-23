@@ -39,16 +39,19 @@ $ifi %ORCHARD%==on +(SUM((c_tree,field,inten,m),p_irrigation_opt_fixed(hhold,c_t
 
 E_QN ..
       V_QN =E= 0    
-$ifi %CROP%==on + SUM((hhold,crop_activity,field,inten,y),v_Prd_C(hhold,crop_activity,field,inten,y)/(p_Nl_raw* sum(NameNitr,V_Use_Input_C(hhold,crop_activity,NameNitr,y))+0.0001))
-$ifi %ORCHARD%==on + (sum((c_treej,hhold,y),v_prodQuant(hhold,c_treej,y))/(p_Nl_raw* sum((hhold,c_tree,y),V_Nfert_AF(hhold,c_tree,y))+0.0001))
+*$ifi %CROP%==on + SUM((hhold,crop_activity,field,inten,y),v_Prd_C(hhold,crop_activity,field,inten,y)/(p_Nl_raw* sum(NameNitr,V_Use_Input_C(hhold,crop_activity,NameNitr,y))+0.0001))
+*$ifi %ORCHARD%==on + (sum((c_treej,hhold,y),v_prodQuant(hhold,c_treej,y))/(p_Nl_raw* sum((hhold,c_tree,y),V_Nfert_AF(hhold,c_tree,y))+0.0001))
+$ifi %CROP%==on + SUM((hhold,crop_activity,field,inten,y),(p_Nl_raw* sum(NameNitr,V_Use_Input_C(hhold,crop_activity,NameNitr,y))))
+$ifi %ORCHARD%==on + (sum((c_treej,hhold,y),(p_Nl_raw* sum(c_tree,V_Nfert_AF(hhold,c_tree,y)))))
+
 ;         
 
 E_Tot_WaterUse ..
      V_Tot_WaterUse          =E=0 
-$ifi %CROP%==on + SUM((hhold,crop_activity,field,inten,y),v_Prd_C(hhold,crop_activity,field,inten,y)/(sum(m,p_irrigation_opt_fixed(hhold,crop_activity,field,inten,m,y)* sum(crop_preceding,V_Plant_C(hhold,crop_activity,crop_preceding,field,inten,y)))+0.0001));
-
-
-
+*$ifi %CROP%==on + SUM((hhold,crop_activity,field,inten,y),v_Prd_C(hhold,crop_activity,field,inten,y)/(sum(m,p_irrigation_opt_fixed(hhold,crop_activity,field,inten,m,y)* sum(crop_preceding,V_Plant_C(hhold,crop_activity,crop_preceding,field,inten,y)))+0.0001));
+$ifi %CROP%==on + sum((hhold,crop_activity,field,inten,m,y), p_irrigation_opt_fixed(hhold,crop_activity,field,inten,m,y)* sum(crop_preceding,V_Plant_C(hhold,crop_activity,crop_preceding,field,inten,y)))
+$ifi %ORCHARD%==on +  sum((hhold,c_tree,field,inten,m,y),p_irrigation_opt_fixed(hhold,c_tree,field,inten,m,y)* sum(age_tree,V_Area_AF(hhold, field, c_tree, age_tree, inten, y)))
+;
 $endIf
 *~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
 * #1 Model parameters
@@ -76,7 +79,8 @@ variable
 equation
    E_UTIL        'utility function'
    E_NPV         'net present value'
-   E_NPV_TOT     'net present value'
+   E_NPV_TOT_PMP     'net present value with PMP'
+   E_NPV_TOT         'Normative PMP'
 ** (SiwaPMP) add equations needed for PMP (1st stage) calibration
    E_AreaConst_UpB  'upper bound constraint on crop area for calibration'
    E_AreaConst_LoB  'lower bound constraint on crop area for calibration'
@@ -135,11 +139,17 @@ E_NPV(hhold)..     v_npv(hhold) =E=
 
 
 *RISK condition
-E_NPV_TOT.. 
+E_NPV_TOT_PMP.. 
     v_npv_tot =E= 
     sum(hhold, v_npv(hhold)) 
 $ifi %CROP%==on $ifi %PMPCalib%==on   - sum((hhold,crop_activity_endo,y), (PMPint(hhold,crop_activity_endo)$(PMPswitch = 2) + PMPslope(hhold,crop_activity_endo)$(PMPswitch = 2)*v_Land_C_Agg(hhold,crop_activity_endo,y))*v_Land_C_Agg(hhold,crop_activity_endo,y))$(PMPswitch = 2)
 ;
+
+
+E_NPV_TOT.. 
+    v_npv_tot =E= 
+    sum(hhold, v_npv(hhold));
+
 
 
 ** (SiwaPMP)
@@ -186,6 +196,10 @@ $ifi %BIOPH%==on    E_cost_irr_crop
 $ifi %BIOPH%==on    E_cost_irr_tree
 /
 ;
+
+model dahbsim_PMP 
+/dahbsim -E_NPV_TOT +E_NPV_TOT_PMP/
+; 
 
 
 
@@ -339,7 +353,6 @@ diffyield(hhold,crop_activity,crop_preceding,field,inten)=(v_Yld_C_max(hhold,cro
 $endif
 $iftheni %CROP%==on
 v0_Yld_C_stress(hhold,crop_activity,crop_preceding,field,inten)=max(0,((v_Yld_C_max(hhold,crop_activity,crop_preceding,field,inten)*p_nstress_fixed(hhold,crop_activity,field,inten,'y01')*p_KS_avg_annual_fixed(hhold,crop_activity,field,inten,'y01'))-   calibBioph(hhold,crop_activity,crop_preceding,field,inten)));
-*
 $endIf
 $endif
 
@@ -409,7 +422,7 @@ $endIf
 
 *** Unfix variables only after the first year due to calibration
 *** This allows the model to adjust irrigation decisions in subsequent years
-solve dahbsim using MINLP maximizing v_npv_tot;
+solve dahbsim using MIP maximizing v_npv_tot;
 * Free up irrigation decision variables after year 1 (calibration period)
 
 $ifi %LIVESTOCK_simplified%==ON V_animals.lo(hhold,type_animal,age,y)= 0;
