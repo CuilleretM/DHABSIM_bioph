@@ -1,26 +1,20 @@
+PMPswitch = 1;
 
-*Siliana
-*For hh1 0.00001
-*For hh2 eps
-
-*Luxor
-*For hh2 eps
-*For hh3 eps
-delta1=0.000001;
+delta1=0.00000001;
 
 
 
-solve dahbsim using MINLP maximizing v_npv_tot;
+solve dahbsim using MIP maximizing v_npv_tot;
 *
 
 
 
 $ifi %LIVESTOCK_simplified%==ON V_animals.lo(hhold,type_animal,age,y)= V_animals.L(hhold,type_animal,age,y);
 $ifi %LIVESTOCK_simplified%==ON V_animals.up(hhold,type_animal,age,y)= V_animals.L(hhold,type_animal,age,y);
-$ifi %LIVESTOCK_simplified%==ON v_FeedAvailable.lo(hhold,feedc,y)=v_FeedAvailable.L(hhold,feedc,y);
-$ifi %LIVESTOCK_simplified%==ON v_FeedAvailable.up(hhold,feedc,y)=v_FeedAvailable.L(hhold,feedc,y);
-$ifi %LIVESTOCK_simplified%==ON v_FeedConsumed.fx(hhold,feedc,type_animal,y) = v_FeedConsumed.L(hhold,feedc,type_animal,y);
-$ifi %LIVESTOCK_simplified%==ON v_FeedConsumed.fx(hhold,feedc,type_animal,y) = v_FeedConsumed.L(hhold,feedc,type_animal,y);
+$ifi %LIVESTOCK_simplified%==ON v_FeedAvailable.lo(hhold,feedc,type_animal,y)=v_FeedAvailable.L(hhold,feedc,type_animal,y);
+$ifi %LIVESTOCK_simplified%==ON v_FeedAvailable.up(hhold,feedc,type_animal,y)=v_FeedAvailable.L(hhold,feedc,type_animal,y);
+*$ifi %LIVESTOCK_simplified%==ON v_FeedConsumed.fx(hhold,feedc,type_animal,y) = v_FeedConsumed.L(hhold,feedc,type_animal,y);
+*$ifi %LIVESTOCK_simplified%==ON v_FeedConsumed.fx(hhold,feedc,type_animal,y) = v_FeedConsumed.L(hhold,feedc,type_animal,y);
 $ifi %CROP%==ON V_Crop_Number.lo(y, hhold, crop_activity) = V_Crop_Number.L(y, hhold, crop_activity);
 $ifi %CROP%==ON V_Crop_Number.up(y, hhold, crop_activity) = V_Crop_Number.L(y, hhold, crop_activity);
 
@@ -69,7 +63,7 @@ PMPswitch = 2;
 
 *-- Solve the unconstrained PMP-calibrated model
 *$ifi %RISK%==off
-solve dahbsim using MINLP maximizing v_npv_tot;
+solve dahbsim_PMP using MINLP maximizing v_npv_tot;
 *$ifi %RISK%==on  solve dahbsim using MINLP maximizing v_objectif;
 
 *~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*

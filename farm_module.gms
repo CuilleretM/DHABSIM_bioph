@@ -63,13 +63,17 @@ equations
 *-- Resource Constraints --
     E_LABORBALANCE_farm        'Labor constraint by subperiods'
 *-- Nutrient Balance --
-    E_NitrBal                  'Nitrate balance'
+*    E_NitrBal                  'Nitrate balance'
 *-- Income and Demand Balances --
     E_INCOME_FARM              'Farm income calculation'
     E_DBALANCE_GD              'Demand balance for goods'
     E_limit_selfcons_c_product 'Limit on self-consumption of crop products'
 *    E_limit_selfcons_ctreej    'Limit on self-consumption of tree products'
 *    E_limit_selfcons_ak        'Limit on self-consumption of livestock products'
+    E_NorgBal
+    E_NcompBal
+*20-04 
+    E_landbalance 
 ;
 
 *~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
@@ -109,20 +113,15 @@ $ifi %ORCHARD%==ON    + V_annualGM_AF(hhold,y)
 E_limit_selfcons_c_product(hhold,c_product,gd,y)$output_good(c_product,gd)..
     v_selfCons(hhold,c_product,y) =L= v_hconQuant(hhold,gd,y);
 
-
-*Nitrogen balance in case of no bioph
-*E_NitrBal(hhold,y)..      
-*sum(crop_activity_endo, V_Use_Input_C(hhold,crop_activity_endo,'nitr',y))
-*    =E= 
-*V_Nfert_C(hhold,y)
-**$ifi %ORCHARD%==ON    + sum(c_tree,V_Nfert_AF(hhold,c_tree,y))
-**$ifi %LIVESTOCK_simplified%==ON + sum(type_animal,v_NitrogenOutput(hhold,type_animal,y+1))
-**$ifi %BIOPH%==ON       $ifi %CROP%==ON  
-*+ v_norg(hhold,y)
-**$ifi %BIOPH%==ON       $ifi %CROP%==ON       + v_ncomp(hhold,y)
-*;
-*
-
+E_NorgBal(hhold).. 
+v_norg_crop(hhold) + v_norg_tree(hhold)=e=
+0
+$ifi %VALUECHAIN%==OFF $ifi %BIOPH%==ON $ifi %LIVESTOCK_simplified%==ON +p_Norg(hhold)
+;
+E_NcompBal(hhold).. 
+v_ncomp_crop(hhold) + v_ncomp_tree(hhold)=e=0
+$ifi %VALUECHAIN%==OFF $ifi %BIOPH%==ON + p_Ncomp(hhold)
+;
 
 
 
@@ -139,4 +138,6 @@ $ifi %ORCHARD%==ON         orchard_model
     E_INCOME_FARM
     E_limit_selfcons_c_product
 $ifi %VALUECHAIN%==on      valuechainMod
+    E_NorgBal
+    E_NcompBal
 /;

@@ -22,12 +22,10 @@ p_selPriceLivestock;
 *============================================================================*
 * #1 INITIALIZATION AND PARAMETERS
 *============================================================================*
-
 * Fix self-consumption to zero for households without output goods
 v_selfCons.fx(hhold,ak,y)$[not sum(gd, output_good(ak,gd))] = 0;
 V_slaughter.up(hhold,type_animal,age,'y01') = p_initPopulation(hhold,type_animal,age);
-
-v_FeedConsumed.up(hhold,feedc,type_animal,y)=100000;
+*v_FeedConsumed.up(hhold,feedc,type_animal,y)=100000;
 *============================================================================*
 * #2 EQUATION DECLARATIONS
 *============================================================================*
@@ -102,10 +100,6 @@ E_additional_input(hhold,y)..
 *---------------------------------------------------------------------------*
 * Production Equations
 *---------------------------------------------------------------------------*
-display a_k
-ak
-akmeat;
-
 E_LIVEPRD(hhold,ak,y)..
     v_prodQuant(hhold,ak,y) =E=  
      sum(type_animal,
@@ -161,31 +155,27 @@ E_FixCost_A(hhold,y)..
 * Feed Equations
 *---------------------------------------------------------------------------*
 e_FeedAvailable(hhold,feedc,y).. 
-    v_FeedAvailable(hhold,feedc,y) =E= v_FeedPurchase(hhold,feedc,y)
+    sum(type_animal,v_FeedAvailable(hhold,feedc,type_animal,y)) =E= v_FeedPurchase(hhold,feedc,y)
 $ifi %CROP%==ON + sum(cken$sameas(feedc,cken), v_residuesfeed(hhold,cken,y))
 ;
 
-e_FeedBalance(hhold,feedc,y).. 
-    v_FeedAvailable(hhold,feedc,y) =G= 
-    sum(type_animal$animal_feed(type_animal,feedc), 
-        sum(age, v_FeedConsumed(hhold,feedc,type_animal,y) * V_animals(hhold,type_animal,age,y)));
-
+*20-04
+*Hypothesis all the food is consumed
+*e_FeedBalance(hhold,feedc,y).. 
+*    v_FeedAvailable(hhold,feedc,y) =G= 
+*    sum(type_animal$animal_feed(type_animal,feedc), 
+*        sum(age, v_FeedConsumed(hhold,feedc,type_animal,y) * V_animals(hhold,type_animal,age,y)));
 
 
 e_FeedEnergy(hhold,type_animal,y).. 
-    sum(feedc, p_grossenergy_feed(feedc) * 
-        sum(age, v_FeedConsumed(hhold,feedc,type_animal,y) * V_animals(hhold,type_animal,age,y))) 
-    =G= sum(age, p_feedReq(type_animal,"gross_energy") * V_animals(hhold,type_animal,age,y));
-
-
-
+    sum(feedc, p_grossenergy_feed(feedc) * v_FeedAvailable(hhold,feedc,type_animal,y)) 
+    =G= sum(age, p_feedReq(type_animal,"gross_energy") *V_animals(hhold,type_animal,age,y));
 e_FeedProtein(hhold,type_animal,y).. 
-    sum(feedc, p_protein_feed(feedc) * sum(age,v_FeedConsumed(hhold,feedc,type_animal,y)* V_animals(hhold,type_animal,age,y))) 
-    =G= sum((feedc,age), p_feedReq(type_animal,"protein") * V_animals(hhold,type_animal,age,y));
-
+    sum(feedc, p_protein_feed(feedc) * v_FeedAvailable(hhold,feedc,type_animal,y)) 
+    =G= sum((feedc,age), p_feedReq(type_animal,"protein")*V_animals(hhold,type_animal,age,y));
 e_FeedDryMatter(hhold,type_animal,y).. 
-    sum(feedc, p_drymatter_feed(feedc) * sum(age,v_FeedConsumed(hhold,feedc,type_animal,y)* V_animals(hhold,type_animal,age,y))) 
-    =G= sum((feedc,age), p_feedReq(type_animal,"dry_matter") * V_animals(hhold,type_animal,age,y));
+    sum(feedc, p_drymatter_feed(feedc) * v_FeedAvailable(hhold,feedc,type_animal,y)) 
+    =G= sum((feedc,age), p_feedReq(type_animal,"dry_matter")*V_animals(hhold,type_animal,age,y) );
 
 
 *---------------------------------------------------------------------------*
@@ -197,14 +187,11 @@ E_Manure_Outputs(hhold,type_animal,y)..
     p_feedReq(type_animal,"dry_matter") * 0.356 * 0.8 * sum(age,V_animals(hhold,type_animal,age,y));
 
 e_NitrogenOutput(hhold,type_animal,y).. 
-    v_NitrogenOutput(hhold,type_animal,y) =E=
-    (1/6.25) *
-    
-
-(sum(feedc, v_FeedConsumed(hhold,feedc,type_animal,y)  * p_protein_feed(feedc)) 
+    v_NitrogenOutput(hhold,type_animal,y) =E=    (1/6.25) *
+(sum(feedc, v_FeedAvailable(hhold,feedc,type_animal,y)  * p_protein_feed(feedc)) 
         - p_prot_metab(hhold,type_animal)
         + p_ca(hhold,type_animal) * 0.44 *
-        sum(feedc, p_grossenergy_feed(feedc) * v_FeedConsumed(hhold,feedc,type_animal,y)) * (1/1000))*            sum(age, V_animals(hhold,type_animal,age,y))
+        sum(feedc, p_grossenergy_feed(feedc) * v_FeedAvailable(hhold,feedc,type_animal,y)) * (1/1000))
         ;
 
 e_Balance_NitrogenOutput(hhold,y).. sum(type_animal,v_NitrogenOutput(hhold,type_animal,y))=e=
@@ -257,7 +244,7 @@ e_Slaughter_Constraint0(hhold,type_animal,age,y)$(ord(age)<2) ..
 
 
 e_PopLimits(hhold,type_animal,y)..
-    sum(age,V_animals(hhold,type_animal,age,y)) =L= 
+    sum(age,V_animals(hhold,type_animal,age,y)) =L= 2*
     sum(age,p_initPopulation(hhold,type_animal,age))
 ;
 
@@ -295,7 +282,7 @@ model LivestockModule /
     E_additional_input
     
 * Feed equations
-    e_FeedBalance
+*    e_FeedBalance
     e_FeedEnergy
     e_FeedProtein
     e_FeedDryMatter
