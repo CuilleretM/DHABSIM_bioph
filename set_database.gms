@@ -26,10 +26,10 @@ $goto %1
 $label set_database_ini
 *-- Year set definitions
 
-$setglobal FstAnte 2025
-$setglobal LstPost 2027
-$setglobal FstYear 2025
-$setglobal LstYear 2027
+$setglobal FstAnte 2023
+$setglobal LstPost 2050
+$setglobal FstYear 2023
+$setglobal LstYear 2050
 
 
 ******DEFINITION OF THE MODULE AND OF THE CASE STUDY
@@ -1518,11 +1518,11 @@ cv_val                   'Coefficient of variation'
 V_Total_ValueChain_Labor 'Total value chain labor'
 V_GHGtotal               'Total GHG emissions'
 ;
-
-$iftheni %ENERGY%==on
 variable
     V_energy(hhold,y)    'Total energy consumption (MJ)'
 ;
+$iftheni %ENERGY%==on
+
 
 * Process energy requirements for agroforestry (if active)
 $iftheni %ORCHARD%==on
@@ -1534,9 +1534,11 @@ p_energy_task_AF(hhold,c_tree,inten,NameOrg_fertAF) =  enerReqtask_AF(hhold, c_t
 p_energy_task_AF(hhold,c_tree,inten,NamePesticideAF)=  enerReqtask_AF(hhold, c_tree,inten,"pest_MJ_ha");
 p_energy_task_AF(hhold,c_tree,inten,NameHarvestAF)  =  enerReqtask_AF(hhold, c_tree,inten,"harv_MJ_ha");
 p_energy_task_AF(hhold,c_tree,inten,NamePruningAF)  =  enerReqtask_AF(hhold, c_tree,inten,"prun_MJ_ha");
-p_energy_AF(hhold,c_tree,inten,m) = sum(c_t_m_orchard(c_tree,task_tree,m), 
+p_energy_AF(hhold,c_tree,inten,m) = sum((task_tree), 
     p_energy_task_AF(hhold,c_tree,inten,task_tree));
 $endIf
+
+
 
 * Process energy requirements for crops (if active)
 $iftheni %CROP%==on
@@ -1547,9 +1549,12 @@ p_energy_task_crop(hhold,crop_activity,inten,NameChe_fert) =  enerReqtask_crop(h
 p_energy_task_crop(hhold,crop_activity,inten,NameOrg_fert) =  enerReqtask_crop(hhold,crop_activity,inten,"orgfer_MJ_ha");
 p_energy_task_crop(hhold,crop_activity,inten,NamePesticide)=  enerReqtask_crop(hhold,crop_activity,inten,"pest_MJ_ha");
 p_energy_task_crop(hhold,crop_activity,inten,NameHarvest)  =  enerReqtask_crop(hhold,crop_activity,inten,"harv_MJ_ha");
-p_energy_crop(hhold,crop_activity,inten,m) = sum(c_t_m(crop_activity,task,m), 
+p_energy_crop(hhold,crop_activity,inten,m) = sum((task), 
 p_energy_task_crop(hhold,crop_activity,inten,task));
 $endIf
 $endIf
-
+display p_energy_task_AF
+p_energy_task_crop
+enerReqtask_AF
+;
 $exit
