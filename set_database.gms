@@ -768,6 +768,8 @@ parameter
 * 10.1 General Nitrogen Cycle Parameters
 *------------------------------------------------------------------------------
   calibBioph(hhold,crop_activity,*,field,inten)  'Biophysical calibration parameters for model fitting'
+  calibBioph(hhold,crop_activity,*,field,inten)  'Biophysical calibration parameters for model fitting'
+
   p_cropCoef(hhold,crop_activity,field,inten,*)  'Crop coefficients (redeclaration for completeness)'
   p_Nini(hhold,field)                            'Initial soil inorganic nitrogen content (kg N/ha)'
   p_Nini_raw                                     'Raw initial nitrogen content data'
@@ -939,7 +941,7 @@ $onEmbeddedCode Connect:
        - {name: Livestock_seller, range: value_chain!AE5, columnDimension: 0, rowDimension: 1, type: set}
        - {name: P_Livestock_seller, range: value_chain!AF4:AJ5000, columnDimension: 1, rowDimension: 2, type: par}
        - {name: Feed_seller, range: value_chain!AK5, columnDimension: 0, rowDimension: 1, type: set}
-       - {name: P_Feed_seller, range: value_chain!AQ5:AS5000, columnDimension: 1, rowDimension: 2, type: par}
+       - {name: P_Feed_seller, range: value_chain!AL4:AP5000, columnDimension: 1, rowDimension: 2, type: par}
        - {name: seller_AF, range: value_chain!S5, columnDimension: 0, rowDimension: 1, type: set}
        - {name: P_seller_AF, range: value_chain!T4:X5000, columnDimension: 1, rowDimension: 2, type: par}
        - {name: p_meteo, range: water!A4:M5000, columnDimension: 1, rowDimension: 1, type: par}
@@ -1480,6 +1482,7 @@ POSITIVE variable
  v_costirr_tree(hhold,y)      'Irrigation cost for trees (normalized currency)';
 * Initialize biophysical calibration parameters
 calibBioph(hhold,crop_activity,crop_preceding,field,inten)=eps;
+
 * Set maximum irrigation capacity
 $ifi %BIOPH%==ON v0_max_irrigation(hhold,crop_and_tree,field,inten,m,y)=irrigation_raw(hhold,'v0_max_irrigation');
 $ifi %BIOPH%==ON p_cost_irrigation(hhold)=irrigation_raw(hhold,'p_cost_irrigation');
@@ -1541,6 +1544,7 @@ $endIf
 
 
 * Process energy requirements for crops (if active)
+$iftheni %ENERGY%==on
 $iftheni %CROP%==on
 p_energy_task_crop(hhold,crop_activity,inten,NamePlanting) =  enerReqtask_crop(hhold,crop_activity,inten,"plant_MJ_ha");
 p_energy_task_crop(hhold,crop_activity,inten,NameWeeding)  =  enerReqtask_crop (hhold,crop_activity,inten,"weed_MJ_ha");
@@ -1557,4 +1561,5 @@ display p_energy_task_AF
 p_energy_task_crop
 enerReqtask_AF
 ;
+$endIf
 $exit
